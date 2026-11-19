@@ -43,13 +43,13 @@ export const PRESETS = {
 
   /** Warmer and bolder than playful-rounded; still soft. */
   'playful-bold': {
-    display: 'Baloo2',
+    display: 'Baloo Two',
     displayWeight: 700,
     meta: 'Nunito',
     metaWeight: 700,
-    accent: 'PatrickHand',
+    accent: 'Patrick Hand',
     accentWeight: 400,
-    capRatio: {Baloo2: 0.69, Nunito: 0.71, PatrickHand: 0.68},
+    capRatio: {'Baloo Two': 0.69, Nunito: 0.71, 'Patrick Hand': 0.68},
     when: 'an energetic topic that still wants warmth: fitness, productivity, how-to',
   },
 
@@ -79,13 +79,13 @@ export const PRESETS = {
 
   /** Archival, documentary, legal, finance. */
   archival: {
-    display: 'LibreCaslonText',
+    display: 'Libre Caslon Text',
     displayWeight: 700,
-    meta: 'SpaceMono',
+    meta: 'Space Mono',
     metaWeight: 700,
     accent: 'Kalam',
     accentWeight: 700,
-    capRatio: {LibreCaslonText: 0.68, SpaceMono: 0.71, Kalam: 0.68},
+    capRatio: {'Libre Caslon Text': 0.68, 'Space Mono': 0.71, Kalam: 0.68},
     when: 'financial, legal or historical material that must feel sourced',
   },
 
@@ -103,13 +103,13 @@ export const PRESETS = {
 
   /** Technical, data, developer, infrastructure. */
   technical: {
-    display: 'SpaceGrotesk',
+    display: 'Space Grotesk',
     displayWeight: 700,
-    meta: 'IBMPlexMono',
+    meta: 'IBM Plex Mono',
     metaWeight: 500,
     accent: 'Kalam',
     accentWeight: 700,
-    capRatio: {SpaceGrotesk: 0.72, IBMPlexMono: 0.72, Kalam: 0.68},
+    capRatio: {'Space Grotesk': 0.72, 'IBM Plex Mono': 0.72, Kalam: 0.68},
     when: 'systems, code, data or infrastructure: precision over warmth',
   },
 
@@ -119,9 +119,9 @@ export const PRESETS = {
     displayWeight: 700,
     meta: 'Nunito',
     metaWeight: 600,
-    accent: 'IndieFlower',
+    accent: 'Indie Flower',
     accentWeight: 400,
-    capRatio: {Caveat: 0.66, Nunito: 0.71, IndieFlower: 0.68},
+    capRatio: {Caveat: 0.66, Nunito: 0.71, 'Indie Flower': 0.68},
     when: 'a first-person or reflective piece where the voice is a person, not a brand',
   },
 } as const satisfies Record<string, TypePreset>;

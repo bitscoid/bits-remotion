@@ -134,14 +134,23 @@ each a display + meta + accent triple with the reason it suits a topic:
 | `handwritten` | Caveat | Nunito | Indie Flower | first-person, reflective |
 
 Set `TYPE_PRESET` in that file. `node qc/type-gate.mjs` fails on an empty key, on one family
-carrying all three roles, and on repeating the previous film's preset in the same folder —
-because a default that ships in the file becomes the pairing on every topic. Measured on this
-scaffold: before the gate existed, every film produced Inter + JetBrains Mono regardless of
-subject. With two presets rendered from the same template, a vision read described one as
-"editorial serif, warm, literary" and the other as "ultra-condensed, punchy, tabloid".
+carrying all three roles, on a family `src/fonts.ts` cannot load, and on a family with no
+`capRatio` — because a default that ships in the file becomes the pairing on every topic.
+Measured on this scaffold: before the gate existed, every film produced Inter + JetBrains Mono
+regardless of subject. With two presets rendered from the same template, a vision read described
+one as "editorial serif, warm, literary" and the other as "ultra-condensed, punchy, tabloid".
 
-If no preset fits the topic, add one to `src/type-presets.ts` and its loaders to
-`src/fonts.ts`. Nothing else hardcodes a face.
+**A family name is the name the font declares, not the file or the module name.** Every preset
+here uses the declared name — `Baloo 2`, `Space Grotesk`, `Space Mono`, `IBM Plex Mono`,
+`Libre Caslon Text`, `Patrick Hand`, `Indie Flower` — because that is what CSS matches against
+and what `@remotion/google-fonts` registers. The module is `Baloo2`; the family is `Baloo Two`.
+Getting this wrong type-checks, loads the font, and then renders the fallback in silence.
+`src/fonts.ts` throws on a mismatch between its `LOADERS` key and the family the loader reports,
+and the gate refuses a loader key that no preset's family matches.
+
+If no preset fits the topic, add one to `src/type-presets.ts`, its loader to `src/fonts.ts`
+(keyed by the declared family), and its `capRatio` — the geometry gate reads the ratios from
+that file and has no table of its own. Nothing else hardcodes a face.
 
 | Mood / style | Families | Notes |
 |---|---|---|

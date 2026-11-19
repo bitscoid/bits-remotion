@@ -45,7 +45,6 @@ export const STYLE = {
     get accentWeight() {
       return preset.accentWeight;
     },
-    capRatio: preset.capRatio,
     titleToMeta: 6,
     capTrackingPx: 6,
     /** 2.5% of a 1080 short side is 27 px of cap height; at 0.72x that is 38 px. */

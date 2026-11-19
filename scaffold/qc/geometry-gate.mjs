@@ -58,21 +58,49 @@ function resolveChrome(ROOT) {
 
 const CHROME = resolveChrome(ROOT);
 
-/** Cap-height ratio per family, measured once. Replace with your own measurement. */
-const CAP_RATIO = {
-  'DejaVu Sans': 0.73,
-  Inter: 0.72,
-  'JetBrains Mono': 0.73,
-  Fredoka: 0.71,
-  Caveat: 0.66,
-  'Baloo 2': 0.69,
-  Shrikhand: 0.70,
-  Quicksand: 0.70,
-};
+/**
+ * Cap-height ratios come from `src/type-presets.ts`, not a copy here.
+ *
+ * A second table drifts: the first version of this file listed eight families
+ * while the presets named sixteen, so twelve faces silently fell back to 0.72
+ * and the gate measured the wrong cap height for them. Bundled from the same
+ * file the composition reads, so adding a preset cannot desync the gate.
+ */
+async function capRatios() {
+  const {buildSync} = await import('esbuild');
+  const tmp = path.join(ROOT, 'work', 'cap-ratio-probe.mjs');
+  buildSync({
+    entryPoints: [path.join(ROOT, 'src', 'type-presets.ts')],
+    bundle: true,
+    outfile: tmp,
+    format: 'esm',
+    platform: 'node',
+    logLevel: 'error',
+  });
+  try {
+    const mod = await import(`${tmp}?t=${Date.now()}`);
+    // Every preset's ratios, merged: a family's cap ratio is a property of the
+    // face, not of the preset that happens to use it, and the gate must still
+    // run while TYPE_PRESET is unset (that is the type gate's complaint, not
+    // this one's).
+    return Object.assign({}, ...Object.values(mod.PRESETS).map((p) => p.capRatio));
+  } finally {
+    fs.unlinkSync(tmp);
+  }
+}
+const CAP_RATIO = {...(await capRatios()), 'DejaVu Sans': 0.73, Inter: 0.72};
 
 const SAMPLES = Number(process.env.QC_SAMPLES ?? 9);
 
-/** Portrait platform floors, as fractions of the frame. */
+/**
+ * Platform floors, as fractions of the frame.
+ *
+ * `edge` holds for both orientations — one number, so there is never a second
+ * truth about it. `bottom` and `right` are the *portrait* Reels/TikTok floors:
+ * they describe a 1080x1920 phone UI, and applying them to a 1920x1080 frame
+ * flags correctly placed landscape text. A landscape film gets the edge rule
+ * and the cap-height tier, nothing else.
+ */
 const SAFE = {edge: 0.04, bottom: 0.10, right: 0.12, readBottom: 0.15};
 
 const host = path.join(ROOT, 'work', 'player-host.html');
@@ -89,6 +117,9 @@ const H = Number(qs.get('h'));
 
 /** Length of the film, in seconds, from the same query the Player uses. */
 const total = Number(qs.get('frames')) / 30;
+
+/** Orientation, from the frame the Player was built for. */
+const PORTRAIT = H > W;
 
 const browser = await puppeteer.launch({
   executablePath: CHROME,
@@ -137,7 +168,7 @@ for (let i = 1; i <= SAMPLES; i++) {
       findings.push(`t=${t.toFixed(1)}s safe-area: "${b.text}" box ${Math.round(b.x)},${Math.round(b.y)} ${Math.round(b.w)}x${Math.round(b.h)}`);
     }
     // 2) portrait platform band
-    if (b.y + b.h > H * (1 - SAFE.bottom) || b.x + b.w > W * (1 - SAFE.right)) {
+    if (PORTRAIT && (b.y + b.h > H * (1 - SAFE.bottom) || b.x + b.w > W * (1 - SAFE.right))) {
       findings.push(`t=${t.toFixed(1)}s platform-band: "${b.text}" crosses the ${Math.round(SAFE.bottom * 100)}% bottom / ${Math.round(SAFE.right * 100)}% right floor`);
     }
     // 3) cap height
@@ -173,5 +204,10 @@ if (unique.length) {
   console.log(unique.join('\n'));
   if (!process.argv.includes('--report')) process.exitCode = 1;
 } else {
-  console.log(`geometry gate OK: ${SAMPLES} samples, safe band ${SAFE.bottom}/${SAFE.right}`);
+  console.log(
+    `geometry gate OK: ${SAMPLES} samples, edge ${SAFE.edge}, ` +
+      (PORTRAIT
+        ? `portrait band ${SAFE.bottom}/${SAFE.right}`
+        : 'no portrait band (landscape)'),
+  );
 }

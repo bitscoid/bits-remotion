@@ -43,23 +43,31 @@ type LoadedFont = {
 
 type Loader = (style?: string, options?: {weights?: string[]; subsets?: string[]}) => LoadedFont;
 
+/**
+ * Keyed by the CSS family name, which is NOT the module name: the `Baloo2`
+ * module declares `Baloo Two`, `SpaceGrotesk` declares `Space Grotesk`. Using
+ * the module name here type-checks and then renders the fallback in silence,
+ * because the loaded face never matches the `fontFamily` the scene asks for.
+ * Each key below is the module's own `fontFamily` — verified against
+ * `@remotion/google-fonts@4.0.545/dist/cjs/<Module>.js`.
+ */
 const LOADERS = {
   Fredoka: loadFredoka,
-  Baloo2: loadBaloo,
+  'Baloo Two': loadBaloo,
   Shrikhand: loadShrikhand,
   Fraunces: loadFraunces,
-  LibreCaslonText: loadLibreCaslon,
+  'Libre Caslon Text': loadLibreCaslon,
   Anton: loadAnton,
-  SpaceGrotesk: loadSpaceGrotesk,
+  'Space Grotesk': loadSpaceGrotesk,
   Caveat: loadCaveat,
   'JetBrains Mono': loadJetBrainsMono,
   Nunito: loadNunito,
-  PatrickHand: loadPatrickHand,
+  'Patrick Hand': loadPatrickHand,
   Poppins: loadPoppins,
-  SpaceMono: loadSpaceMono,
+  'Space Mono': loadSpaceMono,
   'IBM Plex Mono': loadIBMPlexMono,
   Kalam: loadKalam,
-  IndieFlower: loadIndieFlower,
+  'Indie Flower': loadIndieFlower,
 } as unknown as Record<string, Loader>;
 
 const preset = resolvePreset(TYPE_PRESET);
@@ -78,7 +86,16 @@ const loaded = wanted.map(([family, weight]) => {
         `Presets available: ${Object.keys(PRESETS).join(', ')}`,
     );
   }
-  return loader('normal', {weights: [String(weight)], subsets: ['latin']});
+  const font = loader('normal', {weights: [String(weight)], subsets: ['latin']});
+  // The loader reports the family it actually registered. A mismatch means the
+  // scene's fontFamily will never match a loaded face, so the render falls back
+  // to a system font with no error — fail here instead.
+  if (font.fontFamily !== family) {
+    throw new Error(
+      `LOADERS["${family}"] registers "${font.fontFamily}". Key the table by the family the module declares.`,
+    );
+  }
+  return font;
 });
 
 /** Resolves when every face the preset names is ready to draw. */

@@ -22,11 +22,13 @@ What each file is:
 | `src/Timeline.tsx` | places each beat with `<Sequence from durationInFrames>` |
 | `src/Scene.tsx` | one beat; text carries `data-qc` so the gate can read it |
 | `src/cue.ts` | `CUE` and `DURATION_SECONDS`, derived from `audio/words.json` |
-| `src/style-brief.ts` | `STYLE` — the ten-line brief |
+| `src/type-presets.ts` | the eight type registers; set `TYPE_PRESET` here |
+| `src/style-brief.ts` | `STYLE` — the ten-line brief; reads its families from the preset |
 | `qc/make-player-host.mjs` | bundles the Player host into `work/` |
+| `qc/type-gate.mjs` | fails until a register is chosen, loadable and measurable |
 | `qc/player-entry.tsx` | exposes `window.__ready` and `window.__seekTo(s)` |
 | `qc/sync-gate.mjs` | proves each text appears at its word and not before |
-| `qc/geometry-gate.mjs` | safe area, platform band, cap height, collision |
+| `qc/geometry-gate.mjs` | safe area, platform band, cap height, collision; cap ratios come from `src/type-presets.ts` |
 | `qc/sync-cases.json` | optional extra cases; the derived keywords always run |
 
 `qc/sync-cases.json` ships as `[]` on purpose. The keywords the composition draws
@@ -40,6 +42,23 @@ on a specific spoken word.
 ```
 
 `t_vo` is seconds into the voiceover, `wordAt` is video seconds. Either works.
+
+## The type register
+
+Set `TYPE_PRESET` in `src/type-presets.ts` — it ships empty, and both the build and
+`qc/type-gate.mjs` stop until it is set. Each preset names three families, their weights and
+their cap ratios; `src/fonts.ts` loads exactly those three.
+
+Family names are the names the fonts declare, not the modules that load them: the `Baloo2`
+module registers `Baloo Two`. A mismatch falls back silently, so `src/fonts.ts` throws when its
+`LOADERS` key disagrees with the family the loader reports, and the gate refuses a key no
+preset uses. Adding a preset means an entry here, a loader there, and a `capRatio` — the
+geometry gate has no ratio table of its own.
+
+Pass `--orientation=landscape` to `qc/make-player-host.mjs` for a landscape film; it reads the
+matching `<Composition>` instead of the first one in `Root.tsx`. The geometry gate reads the
+frame size from the same query, so a landscape film skips the portrait platform band and is
+measured on the frame it will actually render.
 
 A sample list for a different script was shipped first and made every new project
 fail its first gate run with three false "missing or late" findings.

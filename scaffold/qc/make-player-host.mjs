@@ -52,16 +52,37 @@ async function framesFromCue() {
   }
 }
 
-/** Orientation and size, from src/Root.tsx. Falls back to portrait. */
-function compositionSize() {
+/**
+ * Orientation and size, from src/Root.tsx.
+ *
+ * Reads the <Composition> block whose id is the requested orientation, not the
+ * first `width=`/`height=` in the file. Measured failure: the first pair always
+ * belongs to `portrait`, so every landscape film was measured on a 1080x1920
+ * page and the safe-area and collision boxes were checked against the wrong
+ * frame.
+ *
+ *   node qc/make-player-host.mjs --orientation=landscape
+ */
+function compositionSize(orientation) {
   const src = fs.readFileSync(path.join(ROOT, 'src', 'Root.tsx'), 'utf8');
-  const w = src.match(/width=\{(\d+)\}/);
-  const h = src.match(/height=\{(\d+)\}/);
+  const blocks = src.split(/<Composition/).slice(1);
+  const block = blocks.find((b) => new RegExp(`id="${orientation}"`).test(b.slice(0, 120)));
+  if (!block) {
+    console.error(
+      `no <Composition id="${orientation}"> in src/Root.tsx. Found: ` +
+        (blocks.map((b) => (b.match(/id="([^"]+)"/) ?? [])[1]).filter(Boolean).join(', ') || 'none'),
+    );
+    process.exit(1);
+  }
+  const w = block.match(/width=\{(\d+)\}/);
+  const h = block.match(/height=\{(\d+)\}/);
   return {width: w ? Number(w[1]) : 1080, height: h ? Number(h[1]) : 1920};
 }
 
+const orientation =
+  (process.argv.find((a) => a.startsWith('--orientation=')) ?? '').split('=')[1] || 'portrait';
 const frames = arg('frames') ?? (await framesFromCue());
-const size = compositionSize();
+const size = compositionSize(orientation);
 const width = arg('width') ?? size.width;
 const height = arg('height') ?? size.height;
 
@@ -92,5 +113,5 @@ const host = `<!doctype html>
 
 fs.writeFileSync(path.join(OUT, 'player-host.html'), host);
 fs.writeFileSync(path.join(OUT, 'player-host.query'), query);
-console.log(`wrote work/player-host.html  ${width}x${height}  frames=${frames}`);
+console.log(`wrote work/player-host.html  ${orientation} ${width}x${height}  frames=${frames}`);
 console.log(`gates open it with ?${query}`);
