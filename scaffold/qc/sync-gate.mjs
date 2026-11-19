@@ -27,6 +27,9 @@ const CHROME =
   path.join(ROOT, 'node_modules', '.remotion', 'chrome-headless-shell', 'linux64',
     'chrome-headless-shell-linux64', 'chrome-headless-shell');
 
+const wordsFile = JSON.parse(fs.readFileSync(path.join(ROOT, 'audio', 'words.json'), 'utf8'));
+globalThis.__voDelay = wordsFile.vo_delay;
+
 const host = path.join(ROOT, 'work', 'player-host.html');
 if (!fs.existsSync(host)) {
   console.error(`missing ${host} — run: node qc/make-player-host.mjs`);
@@ -43,8 +46,27 @@ await page.setViewport({width: 1080, height: 1920});
 await page.goto(`file://${host}`, {waitUntil: 'networkidle0'});
 await page.waitForFunction('window.__ready === true', {timeout: 30000});
 
-/** The cases the composition itself uses, read from the bundled page. */
-const checks = await page.evaluate(() => window.__syncCases);
+/**
+ * The cases to check.
+ *
+ * The composition's own keywords come from the bundled page (`window.__syncCases`,
+ * fed by `src/cue.ts`), so the gate can never check a time the video does not use.
+ *
+ * `qc/sync-cases.json` may ADD extra cases — a stamp mid-sentence, a number that
+ * appears on its own beat. It cannot remove or override the derived ones: a gate
+ * you can quietly shrink is not a gate.
+ */
+const derived = await page.evaluate(() => window.__syncCases);
+const extraPath = path.join(ROOT, 'qc', 'sync-cases.json');
+const extra = fs.existsSync(extraPath)
+  ? JSON.parse(fs.readFileSync(extraPath, 'utf8')).map((c) => ({
+      text: c.text,
+      // accept `wordAt` (video seconds) or `t_vo` (voiceover seconds)
+      wordAt: c.wordAt ?? c.t_vo + (globalThis.__voDelay ?? 0),
+    }))
+  : [];
+
+const checks = [...derived, ...extra];
 
 /** Every text actually VISIBLE at a video second, after the Player has settled. */
 const textsAt = (videoSeconds) =>

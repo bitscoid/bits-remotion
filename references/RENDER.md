@@ -496,8 +496,12 @@ node qc/make-player-host.mjs          # writes work/player-host.html
 node qc/sync-gate.mjs                 # reads qc/sync-cases.json, prints findings
 ```
 
-`qc/sync-cases.json` is a list of `{text, t_vo}`. The gate converts each `t_vo` to video
-time with `VO_DELAY`, then proves two things:
+The keywords come from `src/cue.ts` through the bundled page, so the gate can never check a
+time the video does not use. `qc/sync-cases.json` may **add** cases — a stamp mid-sentence, a
+number on its own beat — as `{text, t_vo}` or `{text, wordAt}`. It cannot remove a derived
+case: a gate you can quietly shrink is not a gate.
+
+The gate converts each `t_vo` to video time with `VO_DELAY`, then proves two things:
 
 - the text **is** present at `t + 0.10`
 - the text is **not** present at `t − 0.15`

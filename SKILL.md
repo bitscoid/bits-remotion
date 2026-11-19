@@ -335,7 +335,7 @@ Pilihannya:
 
 ### Stage 4 — Analyse assets and control duration
 
-1. Inventory every file and understand each asset's role against the script. Measure user image dimensions with `ffprobe` or PIL before the composition references them: an image far smaller than the output resolution breaks when enlarged — tell the user, or design the composition so it still works (e.g. small element instead of full-bleed).
+1. Inventory every file and understand each asset's role against the script. Measure user image dimensions with `ffprobe` before the composition references them: an image far smaller than the output resolution breaks when enlarged — tell the user, or design the composition so it still works (e.g. small element instead of full-bleed).
 
    ```
    Gambar [nama] berukuran [W]×[H], sedangkan video [W]×[H]. Kalau dipakai

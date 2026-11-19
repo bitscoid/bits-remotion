@@ -23,7 +23,7 @@ What each file is:
 | `qc/make-player-host.mjs` | bundles the Player host into `work/` |
 | `qc/player-entry.tsx` | exposes `window.__ready` and `window.__seekTo(s)` |
 | `qc/sync-gate.mjs` | proves each text appears at its word and not before |
-| `qc/sync-cases.json` | `{text, t_vo}` pairs the gate checks |
+| `qc/sync-cases.json` | optional extra cases; the derived keywords always run |
 
 Two measured traps this scaffold already avoids:
 
