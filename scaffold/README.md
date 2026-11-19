@@ -27,6 +27,21 @@ What each file is:
 | `qc/geometry-gate.mjs` | safe area, platform band, cap height, collision |
 | `qc/sync-cases.json` | optional extra cases; the derived keywords always run |
 
+`qc/sync-cases.json` ships as `[]` on purpose. The keywords the composition draws
+come from `src/cue.ts` (which reads `audio/words.json`), and those always run —
+this file cannot remove them. Add an entry only for text that is **not** a
+sentence's last word: a stamp, a number on its own beat, a label that must land
+on a specific spoken word.
+
+```json
+[{"text": "92 juta", "t_vo": 4.1}, {"text": "6 jam", "wordAt": 7.46}]
+```
+
+`t_vo` is seconds into the voiceover, `wordAt` is video seconds. Either works.
+
+A sample list for a different script was shipped first and made every new project
+fail its first gate run with three false "missing or late" findings.
+
 Two measured traps this scaffold already avoids:
 
 1. `<Series.Sequence>` stacks children back to back and ignores a start time.

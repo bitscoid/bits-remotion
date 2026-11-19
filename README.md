@@ -56,6 +56,80 @@ That's the whole interface. No config file, no CLI flags, no build step. The ful
 
 ---
 
+## 🧭 Where it runs, and what a full run looks like
+
+### Any directory, one folder per video
+
+Run the agent from any directory — your home, a projects folder, a client folder. You create
+nothing first. Stage 1 derives a slug from the topic title, tells you the slug, then creates
+that folder and works inside it.
+
+```
+~/projects/
+├── tiga-mitos-otak/      ← created by run 1
+└── kopi-dan-tidur/       ← created by run 2
+```
+
+Three rules govern collisions:
+
+| Situation | What happens |
+|---|---|
+| Same topic again | Continues in the existing folder and overwrites the same file names — a revision, not a copy |
+| Different topic, same slug | Stops and asks before touching anything |
+| Anything else | Creates a new folder, never `-2`, `-3` or a date suffix |
+
+Nothing is shared between projects: no global config, no state file, no daemon. Two folders can
+be rendered side by side and cannot affect each other.
+
+### The run, stage by stage
+
+| Stage | What happens | What you see |
+|---|---|---|
+| 1 · Script | Orientation and cap decided first, because the cap sets the script length. Script written with `[Hook]`/`[Inti N]`/`[Penutup]` labels | The script in Indonesian, with format and word count |
+| 2 · Assets | One message asking for recording, music, reference, images, orientation, captions — **once** | Six numbered questions, all optional except the voice |
+| 3 · Readiness | Confirms, or fills gaps from documented defaults | One line, or a single clarifying question |
+| 4 · Measure | Real voiceover duration, ASR word timing, reference read, font choice | The style brief and the exact duration |
+| 5 · Timeline | One absolute-time table | Nothing — internal planning |
+| 6 · Build | Scene code, then render, then one `loudnorm` pass | Progress, then the raw file |
+| 7 · QC | Gates measured from the exported file | The delivery numbers and `publish.txt` |
+
+### End to end, with the commands
+
+```bash
+mkdir -p ~/projects && cd ~/projects
+```
+
+Then ask the agent, in Indonesian:
+
+```
+buatkan motion graphic tentang kenapa kopi bikin ngantuk
+```
+
+It replies with the script and, in the same message, the six asset questions. Answer them or
+say `buat semuanya otomatis`. From there it creates `~/projects/kenapa-kopi-bikin-ngantuk/`,
+fills it, and runs the build:
+
+```bash
+cd ~/projects/kenapa-kopi-bikin-ngantuk
+cp -r <skill>/scaffold/. .        # once per project, before the first render
+npm install && npx remotion browser ensure
+node qc/make-player-host.mjs
+npx remotion render src/index.ts portrait work/render-raw.mp4 --concurrency=8
+ffmpeg -y -i work/render-raw.mp4 -af "loudnorm=I=-16:TP=-1.5:LRA=11" \
+  -c:v copy -c:a aac -b:a 192k -ar 48000 out/kenapa-kopi-bikin-ngantuk.mp4
+node qc/sync-gate.mjs && node qc/geometry-gate.mjs
+```
+
+| Path | What it is |
+|---|---|
+| `out/<slug>.mp4` | the video |
+| `out/publish.txt` | caption, description, hashtags |
+| `src/` | the whole visual design |
+| `audio/words.json` | the timing table, durable |
+| `qc/` | the two gates |
+
+Re-running the render in the same folder produces the same video from the same inputs.
+
 ## 🧠 Design philosophy
 
 This skill is **rules, not a template.**

@@ -431,14 +431,19 @@ Two checks are not optional because they protect the file itself, and both catch
 - **final mix loudness and tail floor** (`RENDER.md` §6, §7) — a quiet mix or a music track that ends early passes every visual gate.
 
 ```bash
-npm install && npx remotion browser ensure         # once
-node qc/make-player-host.mjs                        # sync gate host
+cp -r <skill>/scaffold/. .                          # once per project
+npm install && npx remotion browser ensure          # once per machine
+node qc/make-player-host.mjs                        # reads src/cue.ts
 mkdir -p out work
 npx remotion render src/index.ts portrait work/render-raw.mp4 --concurrency=8
 ffmpeg -y -i work/render-raw.mp4 -af "loudnorm=I=-16:TP=-1.5:LRA=11" \
   -c:v copy -c:a aac -b:a 192k -ar 48000 out/tiga-mitos-otak.mp4
-node qc/sync-gate.mjs
+node qc/sync-gate.mjs && node qc/geometry-gate.mjs
 ```
+
+The scaffold carries `src/`, `qc/`, `package.json` and `tsconfig.json`. Copy it before the first
+render of every new project — Remotion refuses to start without `tsconfig.json`, and the gates
+live in `qc/`.
 
 The raw render goes to `work/` and only the normalised file carries the deliverable name.
 Never ship `-final`, `-v2` or `_fixed`: a re-render overwrites the same path.
