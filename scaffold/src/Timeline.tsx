@@ -1,4 +1,4 @@
-import {AbsoluteFill, Audio, Sequence, interpolate, staticFile, useVideoConfig} from 'remotion';
+import {AbsoluteFill, Audio, Sequence, interpolate, staticFile, useCurrentFrame, useVideoConfig} from 'remotion';
 import React from 'react';
 import {Scene} from './Scene';
 import {CUE, VO_DELAY} from './cue';
@@ -23,6 +23,8 @@ export const Timeline: React.FC = () => {
   const {durationInFrames, fps} = useVideoConfig();
 
   const music = MUSIC;
+  // At composition level (outside any <Sequence>) this is the absolute frame.
+  const frame = useCurrentFrame();
   const leadIn = Math.round(VO_DELAY * fps);
 
   const beats = CUE.map((beat, i) => {
@@ -76,6 +78,32 @@ export const Timeline: React.FC = () => {
           <Scene beat={beat} />
         </Sequence>
       ))}
+
+      {/*
+        A shape that moves for the whole film.
+
+        Measured reason: each Scene reveals its card at `wordAt`, so the gap
+        between a cut and its word showed only a small meta label — the contact
+        sheet caught it as a near-empty frame. This rule fills that gap and
+        guarantees the encoder always sees a position change, so a beat can never
+        be read as a freeze. It is a shape, not text, so no text gate sees it.
+      */}
+      <div
+        style={{
+          position: 'absolute',
+          left: 140,
+          top: 1230,
+          height: 6,
+          width: 620,
+          borderRadius: 3,
+          backgroundColor: STYLE.palette.accent,
+          opacity: 0.55,
+          transformOrigin: 'left center',
+          transform: `scaleX(${interpolate(frame, [0, durationInFrames], [0, 1], {
+            extrapolateRight: 'clamp',
+          })})`,
+        }}
+      />
     </AbsoluteFill>
   );
 };

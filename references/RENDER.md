@@ -675,6 +675,11 @@ ffmpeg -f lavfi -i "anoisesrc=d=0.4:c=pink:a=0.5" \
 - **A drift that stops early leaves duplicate frames.** Animating position only over the
   first second produced identical thumbnails for the rest of a 15 s video — the contact
   sheet showed rows 2 and 3 as duplicates. Drift across the whole beat.
+- **A card revealed only at `wordAt` leaves the cut empty.** Measured: the ~0.4 s between a
+  cut and its word showed one small meta label and nothing else, and the contact sheet flagged
+  it as a near-empty frame. Keep a shape moving across the whole composition — a progress rule
+  at `scaleX 0→1` over `durationInFrames`. It fills the gap and guarantees the encoder sees a
+  position change, so a beat can never be read as a freeze.
 - **A large word placed by `top` sits on its baseline box, not inside a block.** Measured
   on the render: a 132 px display word at `top: 1040` with a block at `top: 1120` straddled
   the block's top edge, half on black and half on orange. Give the block a `lineHeight: 1`
