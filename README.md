@@ -31,7 +31,7 @@ The output is an **MP4 (H.264 + AAC, 30 fps, constant frame rate)** whose length
 | Portrait `1080×1920` | **60 s** | Reels / TikTok / Shorts |
 | Landscape `1920×1080` | **300 s** (5 min) | YouTube explainer |
 
-Longer only when you ask. Orientation is chosen in stage 1, before the script is written, because it sets the cap; a supplied reference must match that orientation and never changes it. Without a preference it asks, and falls back to **1920×1080** landscape or **1080×1920** portrait.
+Longer only when you ask. Orientation is chosen in stage 1, before the script is written, because it sets the cap; a supplied reference must match that orientation and never changes it. Without an answer it asks once, then defaults to **1920×1080** landscape.
 
 ---
 
@@ -113,8 +113,8 @@ Measured with the WCAG formula: a light salmon `(238,150,130)` on cream `(245,24
 <details open>
 <summary><b>🔊 Audio</b></summary>
 
-- Voiceover normalised to −16 LUFS, true peak −1.5 dB, in its own file
-- Music **ducked under speech** with a fading `volume` curve, faded to a floor — never to absolute zero
+- Voiceover and music mixed in the composition, then **one** `loudnorm` pass on the export
+- Music **ducked under speech** with a fading `volume` curve that returns to its bed level, then faded to a floor at the end
 - Audio gate is **windowed**: no dead air inside the speech region, and with music the tail must still carry sound
 - Finished mix measured: **I ∈ [−17, −14] LUFS**, true peak ≤ −1 dBTP
 
@@ -138,7 +138,7 @@ The lower bound is the encoder, not taste: motion under ~10 px can be quantised 
 
 Scenes with the same structural signature get flagged so you can decide: *deliberate motif* or *coincidence to fix*. The gate forces that decision to be written down; it never homogenises the output.
 
-Signatures compare ink against each frame's own modal luma, so a dark theme with light text works — a fixed luma threshold measures the background instead and returns an identical centroid for every scene.
+Signatures are the `data-qc` boxes: same role, same size, same position on consecutive beats means the layout did not change. No pixels are read, so a dark theme with light text is not a special case.
 
 </details>
 
@@ -158,13 +158,14 @@ tiga-mitos-otak/
 │   ├── Root.tsx            one <Composition> per orientation
 │   ├── Timeline.tsx        <Sequence> per beat + the audio tracks
 │   ├── Scene.tsx           one beat, pure f(frame)
-│   └── style-brief.ts      STYLE + CUE
+│   ├── cue.ts              CUE, derived from words.json
+│   └── style-brief.ts      STYLE
 ├── qc/
 │   ├── player-entry.tsx    the in-page harness
 │   ├── make-player-host.mjs
 │   ├── sync-gate.mjs       proves text appears after its word
 │   ├── geometry-gate.mjs   safe area, cap height, collision
-│   └── sync-cases.json
+│   └── sync-cases.json     optional extra cases
 ├── audio/
 │   └── words.json          word-level timing; DURABLE, never deleted
 ├── assets/

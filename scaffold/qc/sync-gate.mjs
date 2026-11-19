@@ -31,10 +31,16 @@ const wordsFile = JSON.parse(fs.readFileSync(path.join(ROOT, 'audio', 'words.jso
 globalThis.__voDelay = wordsFile.vo_delay;
 
 const host = path.join(ROOT, 'work', 'player-host.html');
-if (!fs.existsSync(host)) {
-  console.error(`missing ${host} — run: node qc/make-player-host.mjs`);
+const queryFile = path.join(ROOT, 'work', 'player-host.query');
+if (!fs.existsSync(host) || !fs.existsSync(queryFile)) {
+  console.error('missing work/player-host.html — run: node qc/make-player-host.mjs');
   process.exit(1);
 }
+/** frames/w/h, written by make-player-host.mjs from cue.ts and Root.tsx. */
+const query = fs.readFileSync(queryFile, 'utf8').trim();
+const qs = new URLSearchParams(query);
+const W = Number(qs.get('w'));
+const H = Number(qs.get('h'));
 
 const browser = await puppeteer.launch({
   executablePath: CHROME,
@@ -42,8 +48,8 @@ const browser = await puppeteer.launch({
   headless: true,
 });
 const page = await browser.newPage();
-await page.setViewport({width: 1080, height: 1920});
-await page.goto(`file://${host}`, {waitUntil: 'networkidle0'});
+await page.setViewport({width: W, height: H});
+await page.goto(`file://${host}?${query}`, {waitUntil: 'networkidle0'});
 await page.waitForFunction('window.__ready === true', {timeout: 30000});
 
 /**

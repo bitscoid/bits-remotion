@@ -1,19 +1,20 @@
 /**
- * Builds the two pages the sync gate and the geometry gate drive.
+ * Builds the page the two gates drive.
  *
  * Why a bundle and not a module import: the gates open the host over file://,
  * and Chrome will not resolve a bare `import {Timeline} from '../src/Timeline'`
  * (a .tsx path) from a file:// document. esbuild resolves the whole graph.
  *
- * Sizes come from the composition, read from env or passed on the command line:
+ * The frame count, width and height are read from `src/cue.ts` and `src/Root.tsx`
+ * and then WRITTEN INTO the host's URL as a query string. Measured bug this
+ * fixes: an earlier version printed the derived frame count but embedded only
+ * width/height, so the Player fell back to 270 frames — the last second of every
+ * longer film was never sampled by a gate.
  *
- *   node qc/make-player-host.mjs --frames=270 --width=1080 --height=1920
- *
- * Defaults match the scaffold's src/Root.tsx. If you change one, change both —
- * a host that disagrees with the composition seeks to frames that do not exist
- * and every sample reads as "text missing".
+ *   node qc/make-player-host.mjs            # reads the composition
+ *   node qc/make-player-host.mjs --frames=330   # override
  */
-import {build} from 'esbuild';
+import {build, buildSync} from 'esbuild';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -21,42 +22,48 @@ const ROOT = process.cwd();
 const OUT = path.join(ROOT, 'work');
 fs.mkdirSync(OUT, {recursive: true});
 
-const arg = (name, fallback) => {
+const arg = (name) => {
   const hit = process.argv.find((a) => a.startsWith(`--${name}=`));
-  if (hit) return Number(hit.split('=')[1]);
-  const env = process.env[`QC_${name.toUpperCase()}`];
-  if (env) return Number(env);
-  return fallback;
+  return hit ? Number(hit.split('=')[1]) : undefined;
 };
 
 /**
- * Read the frame count from the composition itself.
+ * durationInFrames, from the same cue.ts the composition uses.
  *
- * `src/Root.tsx` derives durationInFrames from cue.ts. Hardcoding a second copy
- * here means the host and the composition drift, and every sample past the real
- * end reads as "text missing". Measured: a host at 270 frames against a 330-frame
- * composition silently truncated the film at the last gate run.
+ * Importing the bundled module — not regexing its source — because
+ * DURATION_SECONDS is an IIFE, not a literal. Measured: a regex on the bundle
+ * found `var DURATION_SECONDS = (() => {` and threw.
  */
-async function framesFromComposition() {
-  const mod = await import('esbuild');
-  const fsMod = await import('node:fs');
-  const out = path.join(OUT, 'cue.mjs');
-  mod.buildSync({
+async function framesFromCue() {
+  const tmp = path.join(OUT, 'cue-probe.mjs');
+  buildSync({
     entryPoints: [path.join(ROOT, 'src', 'cue.ts')],
     bundle: true,
-    outfile: out,
+    outfile: tmp,
     format: 'esm',
     platform: 'node',
     logLevel: 'error',
   });
-  const {DURATION_SECONDS} = await import(`${out}?t=${Date.now()}`);
-  fsMod.unlinkSync(out);
-  return DURATION_SECONDS * 30;
+  try {
+    const mod = await import(`${tmp}?t=${Date.now()}`);
+    return Math.round(mod.DURATION_SECONDS * 30);
+  } finally {
+    fs.unlinkSync(tmp);
+  }
 }
 
-const width = arg('width', 1080);
-const height = arg('height', 1920);
-const frames = arg('frames', null) ?? (await framesFromComposition());
+/** Orientation and size, from src/Root.tsx. Falls back to portrait. */
+function compositionSize() {
+  const src = fs.readFileSync(path.join(ROOT, 'src', 'Root.tsx'), 'utf8');
+  const w = src.match(/width=\{(\d+)\}/);
+  const h = src.match(/height=\{(\d+)\}/);
+  return {width: w ? Number(w[1]) : 1080, height: h ? Number(h[1]) : 1920};
+}
+
+const frames = arg('frames') ?? (await framesFromCue());
+const size = compositionSize();
+const width = arg('width') ?? size.width;
+const height = arg('height') ?? size.height;
 
 await build({
   entryPoints: [path.join(ROOT, 'qc', 'player-entry.tsx')],
@@ -68,6 +75,9 @@ await build({
   define: {'process.env.NODE_ENV': '"production"'},
   logLevel: 'error',
 });
+
+/* The numbers go into the URL, so the Player and the gates agree by construction. */
+const query = `frames=${frames}&w=${width}&h=${height}`;
 
 const host = `<!doctype html>
 <html><head><meta charset="utf-8">
@@ -81,5 +91,6 @@ const host = `<!doctype html>
 </body></html>`;
 
 fs.writeFileSync(path.join(OUT, 'player-host.html'), host);
-console.log(`wrote work/player-host.html  ${width}x${height}  ${frames} frames`);
-console.log('frames come from src/cue.ts — pass --frames= to override');
+fs.writeFileSync(path.join(OUT, 'player-host.query'), query);
+console.log(`wrote work/player-host.html  ${width}x${height}  frames=${frames}`);
+console.log(`gates open it with ?${query}`);

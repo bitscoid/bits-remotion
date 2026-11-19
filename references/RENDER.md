@@ -84,7 +84,9 @@ const {width} = measureText({text: 'KATA', fontFamily: 'Inter', fontSize: 110, f
 `measureText` throws `measureText() can only be called in a browser` from a Node script.
 Call it inside a component.
 
-**Fonts ready to use.** This is a starting point, not a menu — pick for the topic, and
+### Fonts ready to use
+
+This is a starting point, not a menu — pick for the topic, and
 download a family that isn't here rather than settling for the first row.
 
 | Mood / style | Families | Notes |
@@ -127,7 +129,8 @@ src/index.ts          registerRoot(Root)          <- the entry point, not option
 src/Root.tsx          <Composition id=... />      <- one per orientation
 src/Timeline.tsx      <Sequence> per beat        <- reads one absolute-time table
 src/Scene.tsx         one beat, pure f(frame)
-src/style-brief.ts    STYLE + CUE                 <- the brief and the time table
+src/cue.ts            CUE, derived from audio/words.json
+src/style-brief.ts    STYLE                      <- the ten-line brief
 public/               voiceover.wav, music.wav, images, fonts
 ```
 
@@ -186,6 +189,33 @@ cmake -S "$WHISPER_DIR" -B "$WHISPER_DIR/build" && cmake --build "$WHISPER_DIR/b
 
 `-oj` writes `work/words.json` with per-word offsets. Measured: 3 s of audio transcribed in
 14.9 s on this machine with the `small` model, CPU only.
+
+**Move it to the durable path before anything else.** whisper.cpp writes into `work/`, and §10
+deletes `work/`; `src/cue.ts` imports `audio/words.json`. Measured failure of skipping this:
+the scaffold failed to bundle after a cleanup with `Cannot find module '../audio/words.json'`.
+
+```bash
+python3 - <<'PY'
+import json
+raw = json.load(open("work/words.json"))
+# whisper.cpp emits {transcription: [{text, offsets:{from,to}, ...}]} in ms
+segs = []
+for t in raw["transcription"]:
+    segs.append({
+        "start": t["offsets"]["from"] / 1000,
+        "end": t["offsets"]["to"] / 1000,
+        "text": t["text"].strip(),
+        "text_display": t["text"].strip(),
+        "words": [{"word": w["text"].strip(),
+                   "start": w["offsets"]["from"] / 1000,
+                   "end": w["offsets"]["to"] / 1000}
+                  for w in t.get("tokens", []) if w["text"].strip()],
+    })
+json.dump({"vo_delay": 1.0, "segments": segs},
+          open("audio/words.json", "w"), ensure_ascii=False, indent=1)
+print("wrote audio/words.json:", len(segs), "segments")
+PY
+```
 
 **B. faster-whisper (Python, 1.2.1)**
 
@@ -372,7 +402,7 @@ still has to be enforced:
 - **No `play()`.** `<OffthreadVideo>` and `<Audio>` are driven by the renderer. For local
   video files that are already H.264, `OffthreadVideo` is the fastest and the most stable;
   measured 450 frames of a 1080×1920 plate in 46 s at concurrency 6.
-- **One absolute-time table.** `CUE` in `src/style-brief.ts` holds every beat start in video
+- **One absolute-time table.** `CUE` in `src/cue.ts` holds every beat start in video
   seconds. `Timeline.tsx` derives each `<Sequence>` duration from it; a scene never keeps its own
   offset. Scene boundaries come from ASR sentence boundaries, not typed twice.
 - **Text must be a DOM node.** The sync gate reads `getBoundingClientRect()` — text drawn
@@ -454,8 +484,18 @@ Ducking music under speech is done in the mix, not in ffmpeg — set `volume` on
 
 ```tsx
 <Audio src={staticFile('music.wav')} volume={(f) =>
-  interpolate(f, [0, 30, 300, 330], [0, 0.25, 0.25, 0], {extrapolateRight: 'clamp'})} />
+  interpolate(
+    f,
+    [0, fps, durationInFrames - fps * 2.5, durationInFrames],
+    [0, 0.25, 0.25, 0.004],   // never exactly 0 — see below
+    {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'}
+  )} />
 ```
+
+The final value is `0.004`, not `0`. A fade that reaches absolute zero on the last frame is
+indistinguishable from the music having died: measured on a 28 s film, it left the final 0.8 s
+at **−61.7 dB** and the tail-floor check failed. Ending at about −48 dB keeps the bed audible
+under the last held frame.
 
 The three-step `loudnorm` → `apad` → `amix` chain belongs to a drawing pipeline that has no
 mixer of its own. Remotion mixes, so the only post-pass needed is the loudness line above.
@@ -493,7 +533,7 @@ The scaffold ships this as `qc/make-player-host.mjs` + `qc/sync-gate.mjs`:
 
 ```bash
 node qc/make-player-host.mjs          # writes work/player-host.html
-node qc/sync-gate.mjs                 # reads qc/sync-cases.json, prints findings
+node qc/sync-gate.mjs                 # derived keywords + optional extras
 ```
 
 The keywords come from `src/cue.ts` through the bundled page, so the gate can never check a
@@ -575,6 +615,19 @@ ffmpeg -hide_banner -nostats -i out/<slug>.mp4 -af ebur128=peak=true -f null - 2
 ```
 
 Target: **I between −17 and −14 LUFS**, true peak ≤ −1 dBTP.
+
+**Tail floor.** When the film has music, the last half second must still carry sound: a bed that
+stops early reads as the music having died. Measure the export, not the timeline:
+
+```bash
+T=$(ffmpeg -hide_banner -sseof -0.5 -i out/<slug>.mp4 -af volumedetect -vn -f null - 2>&1 \
+    | sed -n 's/.*mean_volume: \(-\?[0-9.]*\) dB/\1/p')
+awk -v t="$T" 'BEGIN{if (t < -50) {print "FAIL tail floor " t " dB"; exit 1} print "tail floor " t " dB OK"}'
+```
+
+Without music the tail is silent by definition and this check does not apply — say so in the
+delivery message instead of reporting a pass. Measured: a bed that stops 1 s early reads
+**−61.7 dB**; the same film with the bed carried to the end reads **−45 dB**.
 
 `silence_start` prints the time as the last field; `$3` matches nothing and every gate
 appears to pass.
@@ -710,7 +763,7 @@ verified and delivered, delete the whole `work/`.
 | `audio/words.json` | **the only non-reproducible derived file** — a fresh ASR pass returns ±0.1 s different timestamps and desyncs a re-render |
 | `public/music.wav` | re-mix without regenerating |
 | `public/` | images, fonts, plates, music |
-| `qc/sync-cases.json` | the texts the sync gate proves, with their word times |
+| `qc/sync-cases.json` | optional extra cases; the derived keywords run without it |
 | `package.json`, `tsconfig.json` | the toolchain |
 | `out/<slug>.mp4` | the deliverable |
 | `out/<slug>.srt` | subtitle track, when generated |
@@ -722,9 +775,13 @@ floor, black/freeze — measured from the exported MP4, never from the timeline.
 **Verify the kept set is self-sufficient:**
 
 ```bash
+# assets the composition reads
 grep -rhoE "staticFile\('([^']+)'\)" src | sed "s/staticFile('//;s/')//" | sort -u | while read p; do
   [ -e "public/$p" ] || echo "MISSING for re-render: public/$p"
 done
+
+# the timing table the build imports — not a staticFile(), so the check above misses it
+[ -e audio/words.json ] || echo "MISSING for re-render: audio/words.json"
 ```
 
 An empty result means `rm -rf work` cost nothing that matters: the bundle rebuilds in one

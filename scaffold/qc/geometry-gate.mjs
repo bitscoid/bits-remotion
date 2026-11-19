@@ -2,7 +2,11 @@
  * The geometry gate (RENDER.md §7).
  *
  * Reads every element carrying `data-qc` at a set of sample frames and checks
- * safe area, cap height and collision. Reports numbers; does not fail the build.
+ * safe area, platform band, cap height and collision.
+ *
+ * Exits 1 on a finding, so a CI step can gate on it — but a finding is advice:
+ * a deliberate choice is a reason to fix the scene or to keep it and say why.
+ * Pass `--report` to always exit 0 and only print.
  *
  *   node qc/geometry-gate.mjs
  *
@@ -25,21 +29,25 @@ const CHROME =
 /** Cap-height ratio per family, measured once. Replace with your own measurement. */
 const CAP_RATIO = {'DejaVu Sans': 0.73, Inter: 0.72, 'JetBrains Mono': 0.73};
 
-const W = Number(process.env.QC_WIDTH ?? 1080);
-const H = Number(process.env.QC_HEIGHT ?? 1920);
 const SAMPLES = Number(process.env.QC_SAMPLES ?? 9);
 
 /** Portrait platform floors, as fractions of the frame. */
 const SAFE = {edge: 0.04, bottom: 0.10, right: 0.12, readBottom: 0.15};
 
 const host = path.join(ROOT, 'work', 'player-host.html');
-if (!fs.existsSync(host)) {
+const queryFile = path.join(ROOT, 'work', 'player-host.query');
+if (!fs.existsSync(host) || !fs.existsSync(queryFile)) {
   console.error('missing work/player-host.html — run: node qc/make-player-host.mjs');
   process.exit(1);
 }
+/** frames/w/h, written by make-player-host.mjs from cue.ts and Root.tsx. */
+const query = fs.readFileSync(queryFile, 'utf8').trim();
+const qs = new URLSearchParams(query);
+const W = Number(qs.get('w'));
+const H = Number(qs.get('h'));
 
-const words = JSON.parse(fs.readFileSync(path.join(ROOT, 'audio', 'words.json'), 'utf8'));
-const total = Number(process.env.QC_FRAMES ?? 270) / 30;
+/** Length of the film, in seconds, from the same query the Player uses. */
+const total = Number(qs.get('frames')) / 30;
 
 const browser = await puppeteer.launch({
   executablePath: CHROME,
@@ -48,7 +56,7 @@ const browser = await puppeteer.launch({
 });
 const page = await browser.newPage();
 await page.setViewport({width: W, height: H});
-await page.goto(`file://${host}`, {waitUntil: 'networkidle0'});
+await page.goto(`file://${host}?${query}`, {waitUntil: 'networkidle0'});
 await page.waitForFunction('window.__ready === true', {timeout: 30000});
 
 const findings = [];
@@ -121,7 +129,7 @@ await browser.close();
 const unique = [...new Set(findings)];
 if (unique.length) {
   console.log(unique.join('\n'));
-  process.exitCode = 1;
+  if (!process.argv.includes('--report')) process.exitCode = 1;
 } else {
   console.log(`geometry gate OK: ${SAMPLES} samples, safe band ${SAFE.bottom}/${SAFE.right}`);
 }

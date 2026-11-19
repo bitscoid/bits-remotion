@@ -19,10 +19,12 @@ What each file is:
 | `src/Root.tsx` | one `<Composition>` per orientation; **the CLI arg is the `id`** |
 | `src/Timeline.tsx` | places each beat with `<Sequence from durationInFrames>` |
 | `src/Scene.tsx` | one beat; text carries `data-qc` so the gate can read it |
-| `src/style-brief.ts` | `STYLE` (the ten-line brief) and `CUE` (the time table) |
+| `src/cue.ts` | `CUE` and `DURATION_SECONDS`, derived from `audio/words.json` |
+| `src/style-brief.ts` | `STYLE` — the ten-line brief |
 | `qc/make-player-host.mjs` | bundles the Player host into `work/` |
 | `qc/player-entry.tsx` | exposes `window.__ready` and `window.__seekTo(s)` |
 | `qc/sync-gate.mjs` | proves each text appears at its word and not before |
+| `qc/geometry-gate.mjs` | safe area, platform band, cap height, collision |
 | `qc/sync-cases.json` | optional extra cases; the derived keywords always run |
 
 Two measured traps this scaffold already avoids:

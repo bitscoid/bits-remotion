@@ -69,7 +69,7 @@ A new rule belongs here only if it satisfies **both**:
 
 A rule that passes (1) but fails (2) is a restriction, not a standard. Rejected examples: "overshoot must be 1.16", "the hook must be 3 seconds", "scenes must be 2–6 seconds", "the palette must be cream".
 
-- **Measured and reported:** text timing follows the spoken words; text inside a shape is centred by glyph box; no text collides or leaves the safe area; cap height meets the threshold; contrast meets the threshold; no dead audio inside the speech region; mix loudness inside the stated band; frame count is exact. Two of these are hard requirements (frame contiguity before encoding, finished loudness and tail floor); the rest inform your decision.
+- **Measured and reported:** text timing follows the spoken words; text inside a shape is centred by glyph box; no text collides or leaves the safe area; cap height meets the threshold; contrast meets the threshold; no dead audio inside the speech region; mix loudness inside the stated band; frame count is exact. Two of these are hard requirements (the exported frame count, finished loudness and tail floor); the rest inform your decision.
 - **Free (your call):** palette, scene count, transition order, **font choice and typeface family**, mood, text placement, cut rhythm, animation duration, overshoot amount, whether an idea needs words at all.
 
 Every number left in these documents **protects** something (legibility, safe area, contrast, encoder behaviour). If you find a number that dictates taste, treat it as a bug in this document: skip it and say so.
@@ -107,13 +107,14 @@ tiga-mitos-otak/
 │   ├── Root.tsx            one <Composition> per orientation
 │   ├── Timeline.tsx        <Sequence> per beat + the audio tracks
 │   ├── Scene.tsx           one beat, pure f(frame)
-│   └── style-brief.ts      STYLE + CUE — the brief and the time table
+│   ├── cue.ts              CUE, derived from audio/words.json
+│   └── style-brief.ts      STYLE — the ten-line brief
 ├── qc/
 │   ├── player-entry.tsx      the in-page harness
 │   ├── make-player-host.mjs  bundles the harness into work/
 │   ├── sync-gate.mjs         proves text appears after its word
 │   ├── geometry-gate.mjs     safe area, cap height, collision
-│   └── sync-cases.json       the texts the gate checks
+│   └── sync-cases.json       optional extra cases (keywords come from cue.ts)
 ├── audio/
 │   └── words.json          word-level timing; DURABLE, never deleted
 ├── assets/                 optional; style reference and raw downloads
@@ -455,7 +456,7 @@ Inspect the exported MP4 from start to finish, not just the timeline editor:
 5. Music supports and speech stays dominant.
 6. No black frames, **undocumented** frozen frames, glitches, or unintended audio defects.
 7. The MP4 plays. Actual duration equals the stage-4 total (never over the active cap), frame count = duration × 30, 30 fps, codec and resolution per spec, nothing after the final second, and the cap in use is stated (60 s portrait, 300 s landscape, or the number the user approved). All of it proven from the exported file's metadata.
-8. The measurements in `references/RENDER.md` §7 are run and reported: sync (no text appears before its word), geometry (safe area, cap height, collision, contrast), audio (no dead air inside the speech region; music present in the tail when music exists; mix I ∈ [−17, −14] LUFS, true peak ≤ −1 dBTP), and repetition pattern (flag only, your call). Two of them are hard requirements — frame contiguity before encoding, and the finished loudness and tail floor. The rest are advisory: report the numbers and the decision you made from them.
+8. The measurements in `references/RENDER.md` §7 are run and reported: sync (no text appears before its word), geometry (safe area, cap height, collision, contrast), audio (no dead air inside the speech region; music present in the tail when music exists; mix I ∈ [−17, −14] LUFS, true peak ≤ −1 dBTP), and repetition pattern (flag only, your call). Two of them are hard requirements — the exported frame count, and the finished loudness and tail floor. The rest are advisory: report the numbers and the decision you made from them.
 9. `out/publish.txt` exists and every block in it is copy-paste ready — see *Publish copy* below. It is part of the deliverable, not an extra.
 
 Check the creative side with your eyes, not a script: open a contact sheet of the export sized from the actual duration — recipe and grid sizing in `references/RENDER.md` §7. If the main model cannot see it, hand the sheet to the `vision` subagent — one call, *Vision routing*. If every thumbnail looks like the same pattern with different words, composition variation is insufficient (`GUIDE.md` §6) — fix it before delivery.
