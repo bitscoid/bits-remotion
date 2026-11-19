@@ -431,6 +431,13 @@ still has to be enforced:
 
 **Easing.** Use `Easing` from remotion or a `spring()`. Measured entry of 8–12 frames with
 `spring({damping: 200})` reads as a snap; longer than 20 frames reads as a drift.
+`CRAFT.md` §1 gives the curve to pick per role — entrance, travel, morph carrier, reveal,
+whip — and §2 explains why a spliced curve reads as choppy at 30 fps.
+
+**Scene handoffs.** A beat boundary does not have to be a cut. `CRAFT.md` §4 gives the
+carrier contract — source, carrier, target, never visible at the same time — and §5 the
+recipe to pick by what two scenes share. A handoff is a stage-5 decision, not a scene
+detail.
 
 **Sub-pixel drift.** CSS animates transform values with sub-pixel precision, so a 0.4 px
 per-frame drift does change pixels. Keep drift in `translateX`/`translateY`,
@@ -686,6 +693,9 @@ ffmpeg -i out/<slug>.mp4 -vf "fps=1/3,scale=240:-1,tile=${GRID}x${GRID}" \
 ```
 
 Measured: 60 s → 20 cells in 5×5; 300 s → 100 cells in 10×10.
+
+**Read the sheet against the review flags** in `CRAFT.md` §6 — POP, STUTTER, HITCH, BLANK,
+COLORJUMP, GHOST, HANDOFF-JUMP and the rest. Those are the defects no number reports.
 
 **Read the sheet; do not only count cells.** Two defects reached a render on this scaffold
 and passed every numeric gate:

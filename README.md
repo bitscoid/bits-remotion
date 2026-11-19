@@ -300,6 +300,7 @@ Measured on this machine: 60 s portrait at concurrency 8 takes **42 s**; 300 s l
 | **`SKILL.md`** | the workflow — 7 stages, decision tables, ready-to-print user messages |
 | **`references/GUIDE.md`** | creative direction — typography, animation, transitions, turning ideas into visuals |
 | **`references/RENDER.md`** | engineering — environment, fonts, ffmpeg, and the QC gates |
+| **`references/CRAFT.md`** | craft — curves per role, the carrier contract for handoffs, review flags |
 
 The measured numbers live with the rule they protect; the creative freedoms live in `GUIDE.md`. Neither pretends to be the other.
 

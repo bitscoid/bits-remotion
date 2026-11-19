@@ -426,6 +426,7 @@ Vary the rhythm: an opening that grabs, a dynamic middle, a closing that satisfi
 Read both reference documents before building anything:
 - `references/GUIDE.md` — creative direction, typography, asset animation, transitions, **translating ideas into visuals (§5), cross-scene variation (§6)**, audio mixing.
 - `references/RENDER.md` — environment check, fonts, the Remotion pipeline, ffmpeg commands, verification.
+- `references/CRAFT.md` — curve per role, the carrier contract for scene handoffs, and the review flags.
 
 **Write QC checks yourself** when you need them. The rules are already complete in prose: safe area, two-tier cap height, WCAG contrast, text collision (coverage), and repetition patterns — all in `GUIDE.md` §2 and `RENDER.md` §7. The scaffold ships both gates (`qc/sync-gate.mjs`, `qc/geometry-gate.mjs`); extend them against your own `data-qc` roles.
 
