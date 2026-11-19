@@ -1,3 +1,5 @@
+import {PRESETS, resolvePreset, TYPE_PRESET} from './type-presets';
+
 /**
  * STYLE BRIEF — the ten lines read from the reference (RENDER.md §4).
  * Replace every value. A brief that could describe any motion-graphics video
@@ -6,6 +8,8 @@
  * The beat table is NOT here: it comes from `cue.ts`, which reads the ASR
  * output so the reveal times cannot drift from the words actually spoken.
  */
+const preset = resolvePreset(TYPE_PRESET);
+
 export const STYLE = {
   title: 'Kenapa kopi\nbikin ngantuk?',
   palette: {
@@ -14,29 +18,34 @@ export const STYLE = {
     accent: '#C6492B',   // 10%, one word per frame
   },
   /**
-   * Three type roles, three registers. A film that uses one family for all three
-   * reads as a template; the pairing is the design.
+   * Three type roles, three registers. The pairing comes from
+   * `src/type-presets.ts`, chosen from the topic in stage 4 — not from a default
+   * that ships in this file.
    *
-   * Pick by the topic, not by what is installed. The catalogue is in
-   * `references/RENDER.md` §"Fonts ready to use" — playful, handwriting and
-   * editorial registers are listed there, and `@remotion/google-fonts` ships a
-   * loader for each family it names.
-   *
-   * Swap any of these for a different family and add its loader in
-   * `src/fonts.ts`. Nothing else in the build assumes a specific face.
+   * Why: a scaffold that shipped one pairing produced that pairing on every
+   * topic, because keeping the default is the cheapest path. The preset is
+   * required and `qc/type-gate.mjs` fails until it is set.
    */
   type: {
-    /** Display: the word that fills the card. Heavy, rounded, friendly. */
-    displayFamily: 'Fredoka',
-    displayWeight: 600,
-    /** Meta: labels, indices, chips. Small, tracked, technical. */
-    metaFamily: 'JetBrains Mono',
-    metaWeight: 500,
-    /** Accent: a handwritten annotation beside the display word. */
-    accentFamily: 'Caveat',
-    accentWeight: 700,
-    /** Cap-height ratio per family, measured once. Used by the geometry gate. */
-    capRatio: {Fredoka: 0.71, 'JetBrains Mono': 0.73, Caveat: 0.66} as Record<string, number>,
+    get displayFamily() {
+      return preset.display;
+    },
+    get displayWeight() {
+      return preset.displayWeight;
+    },
+    get metaFamily() {
+      return preset.meta;
+    },
+    get metaWeight() {
+      return preset.metaWeight;
+    },
+    get accentFamily() {
+      return preset.accent;
+    },
+    get accentWeight() {
+      return preset.accentWeight;
+    },
+    capRatio: preset.capRatio,
     titleToMeta: 6,
     capTrackingPx: 6,
     /** 2.5% of a 1080 short side is 27 px of cap height; at 0.72x that is 38 px. */

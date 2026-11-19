@@ -119,9 +119,29 @@ the design; one family for all three is what makes a video read as a template.
 | **meta** | labels, indices, chips, footnotes | mono or small-caps serif | `metaFamily` |
 | **accent** | an annotation, a scribble | handwriting, sparingly, never body | `accentFamily` |
 
-The scaffold ships Fredoka + JetBrains Mono + Caveat as a worked example, and
-`src/fonts.ts` lists the loaders for the alternates. Change the three names in
-`STYLE.type` and the matching `loadFont` imports — nothing else hardcodes a face.
+**The register is a required choice, not a default.** `src/type-presets.ts` holds eight,
+each a display + meta + accent triple with the reason it suits a topic:
+
+| Preset | Display | Meta | Accent | When |
+|---|---|---|---|---|
+| `playful-rounded` | Fredoka | JetBrains Mono | Caveat | food, habits, kids, everyday science |
+| `playful-bold` | Baloo 2 | Nunito | Patrick Hand | fitness, productivity, how-to |
+| `poster-display` | Shrikhand | Poppins | Caveat | culture, music, opinion |
+| `editorial` | Fraunces | JetBrains Mono | Caveat | essay, history, analysis |
+| `archival` | Libre Caslon | Space Mono | Kalam | financial, legal, historical |
+| `kinetic-impact` | Anton | JetBrains Mono | Caveat | statistics, records, hooks |
+| `technical` | Space Grotesk | IBM Plex Mono | Kalam | systems, code, data |
+| `handwritten` | Caveat | Nunito | Indie Flower | first-person, reflective |
+
+Set `TYPE_PRESET` in that file. `node qc/type-gate.mjs` fails on an empty key, on one family
+carrying all three roles, and on repeating the previous film's preset in the same folder —
+because a default that ships in the file becomes the pairing on every topic. Measured on this
+scaffold: before the gate existed, every film produced Inter + JetBrains Mono regardless of
+subject. With two presets rendered from the same template, a vision read described one as
+"editorial serif, warm, literary" and the other as "ultra-condensed, punchy, tabloid".
+
+If no preset fits the topic, add one to `src/type-presets.ts` and its loaders to
+`src/fonts.ts`. Nothing else hardcodes a face.
 
 | Mood / style | Families | Notes |
 |---|---|---|

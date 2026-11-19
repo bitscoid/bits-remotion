@@ -381,7 +381,7 @@ Pilihannya:
    sendiri: latar [warna], aksen [warna], tipografi [jenis], gerak [sifat].
    Kalau Anda punya contoh tampilan yang lebih Anda suka, kirim saja.
    ```
-5. **Choose three type roles, one family each — do not let one family carry the whole film.** Display (the keyword) · meta (labels, indices) · accent (a handwritten annotation). Pick each from the topic's register and pick them as a set; a doodle topic takes rounded + handwriting + mono, an archival one takes serif + small-caps + mono. THEN: choose the family from the topic and the reference, never from what happens to be installed. Read the reference's type register first, then match a family to the topic's character. State the choice and reasoning in one sentence. If that font is not in the catalogue and not installed, search the internet for one that fits, download it, and verify it before writing scene code — recipe in `references/RENDER.md` §1. Never start building with a font that merely exists and then bend the design toward it; that order produces generic work.
+5. **Pick a type preset from the topic, then set it — the build fails until you do.** `src/type-presets.ts` holds eight registers (`playful-rounded`, `playful-bold`, `poster-display`, `editorial`, `archival`, `kinetic-impact`, `technical`, `handwritten`), each a display + meta + accent family with the reason it suits a topic. Read the reference's type register, choose the preset that fits the topic, and set `TYPE_PRESET`. `node qc/type-gate.mjs` fails on an empty key, on one family carrying all three roles, and on repeating the previous film's preset in the same folder (`BITS_REUSE_TYPE=1` overrides a deliberate repeat). Do not keep a default: the default is what made every film look the same. If no preset fits, add one and its loaders in `src/fonts.ts`. Read the reference's type register first, then match a family to the topic's character. State the choice and reasoning in one sentence. If that font is not in the catalogue and not installed, search the internet for one that fits, download it, and verify it before writing scene code — recipe in `references/RENDER.md` §1. Never start building with a font that merely exists and then bend the design toward it; that order produces generic work.
 
    ```
    Tipografi: [nama keluarga huruf] untuk [peran], karena [alasan singkat
@@ -438,6 +438,7 @@ Two checks are not optional because they protect the file itself, and both catch
 cp -r <skill>/scaffold/. .                          # once per project
 npm install
 bash scripts/setup-shared-browser.sh                # once per machine, shares one browser
+node qc/type-gate.mjs                              # fails until a preset is set
 node qc/make-player-host.mjs                        # reads src/cue.ts
 mkdir -p out work
 npx remotion render src/index.ts portrait work/render-raw.mp4 --concurrency=8
