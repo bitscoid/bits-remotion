@@ -27,6 +27,14 @@ export type Beat = {
    * caught it. One word at 104 px stays inside 620 px.
    */
   text: string;
+  /**
+   * A handwritten aside, in the accent family. Two to four words, and it is an
+   * annotation — the thing a person would scribble next to the keyword, not a
+   * second sentence. Leave it empty and the layer is skipped.
+   *
+   * Set it in `audio/words.json` per segment as `annotation`.
+   */
+  annotation: string;
 };
 
 type Segment = {
@@ -36,6 +44,8 @@ type Segment = {
   text_display?: string;
   /** Optional override for the drawn keyword, set by the human editing the file. */
   keyword?: string;
+  /** Optional handwritten aside, drawn in the accent family. */
+  annotation?: string;
   words: {word: string; start: number; end: number}[];
 };
 
@@ -73,6 +83,7 @@ export const CUE: Beat[] = file.segments.map((seg, i) => ({
   wordAt: (seg.words?.at(-1)?.start ?? seg.start) + file.vo_delay,
   vo: seg.text,
   text: keywordFor(seg),
+  annotation: seg.annotation ?? '',
 }));
 
 /**

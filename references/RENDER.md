@@ -110,11 +110,24 @@ Call it inside a component.
 This is a starting point, not a menu — pick for the topic, and
 download a family that isn't here rather than settling for the first row.
 
+**A film has three type roles, and they should not all share a family.** The pairing is
+the design; one family for all three is what makes a video read as a template.
+
+| Role | Carries | Typical register | In `STYLE.type` |
+|---|---|---|---|
+| **display** | the keyword, the number, the verdict | impact, or rounded for a light topic | `displayFamily` |
+| **meta** | labels, indices, chips, footnotes | mono or small-caps serif | `metaFamily` |
+| **accent** | an annotation, a scribble | handwriting, sparingly, never body | `accentFamily` |
+
+The scaffold ships Fredoka + JetBrains Mono + Caveat as a worked example, and
+`src/fonts.ts` lists the loaders for the alternates. Change the three names in
+`STYLE.type` and the matching `loadFont` imports — nothing else hardcodes a face.
+
 | Mood / style | Families | Notes |
 |---|---|---|
 | Modern, neutral, UI-like | Inter, Montserrat, Manrope, DM Sans, Figtree, Poppins | Safe for narration and body |
 | Playful, doodle, rounded | Baloo 2, Fredoka, Quicksand, Nunito, Gochi Hand | Light topics, children/youth |
-| Handwriting, annotation | Caveat, Patrick Hand, Indie Flower, Kalam | Annotation accents |
+| Handwriting, annotation | Caveat, Patrick Hand, Indie Flower, Kalam | Annotation accents — the accent role, never body |
 | Elegant / retro script | Pacifico, Dancing Script, Shrikhand | Wordmarks, casual headlines — rarely body |
 | Impact, kinetic type | Bebas Neue, Anton, Archivo Black, Oswald, Archivo, Unbounded, Syne | Big keywords, hooks, statistics |
 | Editorial / firm serif | Fraunces, Instrument Serif, Libre Caslon Text, DM Serif Display, Newsreader, Gloock | Quotes, large figures, serious topics |

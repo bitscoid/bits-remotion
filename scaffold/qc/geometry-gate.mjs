@@ -59,7 +59,16 @@ function resolveChrome(ROOT) {
 const CHROME = resolveChrome(ROOT);
 
 /** Cap-height ratio per family, measured once. Replace with your own measurement. */
-const CAP_RATIO = {'DejaVu Sans': 0.73, Inter: 0.72, 'JetBrains Mono': 0.73};
+const CAP_RATIO = {
+  'DejaVu Sans': 0.73,
+  Inter: 0.72,
+  'JetBrains Mono': 0.73,
+  Fredoka: 0.71,
+  Caveat: 0.66,
+  'Baloo 2': 0.69,
+  Shrikhand: 0.70,
+  Quicksand: 0.70,
+};
 
 const SAMPLES = Number(process.env.QC_SAMPLES ?? 9);
 
@@ -134,7 +143,8 @@ for (let i = 1; i <= SAMPLES; i++) {
     // 3) cap height
     const ratio = CAP_RATIO[b.family] ?? 0.72;
     const capPx = b.fontSize * ratio;
-    const need = b.role === 'meta' ? 0.025 : 0.04;
+    // meta and the handwritten accent are supporting tier; display is primary
+    const need = b.role === 'display' ? 0.04 : 0.025;
     if (capPx < short * need) {
       findings.push(`t=${t.toFixed(1)}s cap-height: "${b.text}" ${capPx.toFixed(0)}px < ${(short * need).toFixed(0)}px (${need * 100}% of ${short})`);
     }

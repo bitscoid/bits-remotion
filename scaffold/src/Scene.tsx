@@ -9,16 +9,20 @@ import {
 import React from 'react';
 import type {Beat} from './cue';
 import {STYLE} from './style-brief';
+import './fonts';
 
 /**
  * One beat. Everything is a pure function of the frame number: no Date.now(),
  * no unseeded Math.random(), no timers.
  *
- * Two clocks, deliberately separate:
- *   `start`  — where the scene is placed on the timeline (Timeline.tsx)
- *   `wordAt` — where the spoken word lands (the reveal)
- * A text on screen before `wordAt` is a sync defect; qc/sync-gate.mjs proves it
- * by sampling one frame before and checking computed opacity, not textContent.
+ * Three type registers in one frame, and that is the design:
+ *
+ *   meta    the scene id        monospace, tiny, tracked   — words about the video
+ *   display the keyword         heavy + rounded            — the word being said
+ *   accent  a hand annotation   handwriting, tilted        — a human aside
+ *
+ * A film that uses one family for all three reads as a template. Pick the
+ * pairing by the topic (STYLE.type), not by what happens to be installed.
  *
  * Inside a <Sequence>, useCurrentFrame() is already sequence-local. Do NOT
  * subtract beat.start again — measured: doing so made sinceWord hugely negative
@@ -43,9 +47,7 @@ export const Scene: React.FC<{beat: Beat}> = ({beat}) => {
     sinceWord < 0 ? 0 : interpolate(sinceWord, [0, 2], [0, 1], {extrapolateRight: 'clamp'});
 
   // Continuous drift across the WHOLE beat, in position. A drift that stops
-  // after 1 s leaves identical frames for the rest of the beat — measured by
-  // contact sheet: rows 2 and 3 were duplicates. The encoder also needs a
-  // position change every second, not just at the entrance.
+  // after 1 s leaves identical frames for the rest of the beat.
   const driftX = interpolate(frame, [0, durationInFrames], [0, 44], {
     easing: Easing.inOut(Easing.quad),
   });
@@ -55,8 +57,6 @@ export const Scene: React.FC<{beat: Beat}> = ({beat}) => {
 
   const wordScale = interpolate(reveal, [0, 1], [0.92, 1]);
 
-  // Geometry, measured from the contact sheet bug: the block must contain the
-  // word. Block 1120..1380; text sits at 1150 with cap height well inside it.
   const BLOCK_TOP = 1120;
   const BLOCK_HEIGHT = 260;
   const TEXT_TOP = 1158;
@@ -83,7 +83,7 @@ export const Scene: React.FC<{beat: Beat}> = ({beat}) => {
           left: 112 + driftX,
           top: TEXT_TOP + driftY,
           color: STYLE.palette.ground,
-          fontFamily: STYLE.type.displayFamily,
+          fontFamily: `${STYLE.type.displayFamily}, sans-serif`,
           fontWeight: STYLE.type.displayWeight,
           fontSize: 132,
           lineHeight: 1,
@@ -96,6 +96,28 @@ export const Scene: React.FC<{beat: Beat}> = ({beat}) => {
         {beat.text}
       </div>
 
+      {/* the annotation hand — tilted, because a hand does not write level */}
+      <div
+        data-qc="accent"
+        style={{
+          position: 'absolute',
+          left: 140 + driftX,
+          top: 1060 + driftY,
+          color: STYLE.palette.accent,
+          fontFamily: `${STYLE.type.accentFamily}, cursive`,
+          fontWeight: STYLE.type.accentWeight,
+          fontSize: STYLE.type.accentSizePx,
+          lineHeight: 1,
+          transform: 'rotate(-4deg)',
+          transformOrigin: 'left center',
+          // lands just after the card, so the frame is not empty at the cut
+          opacity:
+            sinceWord < 6 ? 0 : interpolate(sinceWord, [6, 12], [0, 1], {extrapolateRight: 'clamp'}),
+        }}
+      >
+        {beat.annotation}
+      </div>
+
       {/* meta layer — the scene id, present from the cut */}
       <div
         data-qc="meta"
@@ -104,7 +126,7 @@ export const Scene: React.FC<{beat: Beat}> = ({beat}) => {
           left: 84,
           top: 220,
           color: STYLE.palette.ink,
-          fontFamily: STYLE.type.metaFamily,
+          fontFamily: `${STYLE.type.metaFamily}, monospace`,
           fontWeight: STYLE.type.metaWeight,
           fontSize: STYLE.type.metaSizePx,
           letterSpacing: STYLE.type.capTrackingPx,

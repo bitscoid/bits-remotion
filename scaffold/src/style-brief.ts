@@ -13,15 +13,35 @@ export const STYLE = {
     ink: '#F5F1EA',      // 20%
     accent: '#C6492B',   // 10%, one word per frame
   },
+  /**
+   * Three type roles, three registers. A film that uses one family for all three
+   * reads as a template; the pairing is the design.
+   *
+   * Pick by the topic, not by what is installed. The catalogue is in
+   * `references/RENDER.md` §"Fonts ready to use" — playful, handwriting and
+   * editorial registers are listed there, and `@remotion/google-fonts` ships a
+   * loader for each family it names.
+   *
+   * Swap any of these for a different family and add its loader in
+   * `src/fonts.ts`. Nothing else in the build assumes a specific face.
+   */
   type: {
-    displayFamily: 'Inter',
+    /** Display: the word that fills the card. Heavy, rounded, friendly. */
+    displayFamily: 'Fredoka',
+    displayWeight: 600,
+    /** Meta: labels, indices, chips. Small, tracked, technical. */
     metaFamily: 'JetBrains Mono',
-    displayWeight: 900,
     metaWeight: 500,
+    /** Accent: a handwritten annotation beside the display word. */
+    accentFamily: 'Caveat',
+    accentWeight: 700,
+    /** Cap-height ratio per family, measured once. Used by the geometry gate. */
+    capRatio: {Fredoka: 0.71, 'JetBrains Mono': 0.73, Caveat: 0.66} as Record<string, number>,
     titleToMeta: 6,
     capTrackingPx: 6,
     /** 2.5% of a 1080 short side is 27 px of cap height; at 0.72x that is 38 px. */
     metaSizePx: 38,
+    accentSizePx: 58,
   },
   layout: {
     massSide: 'left',
