@@ -42,11 +42,10 @@ Longer only when you ask. Orientation is chosen in stage 1, before the script is
 git clone https://github.com/bitscoid/bits-remotion.git \
   ~/.config/opencode/skills/bits-remotion
 
-# 2. check the toolchain (node >= 22, ffmpeg, Remotion browser)
+# 2. install the browser once per machine (not once per project)
 node -v
 ffmpeg -version | head -1
-npx remotion --version
-npx remotion browser ensure
+bash <skill>/scaffold/scripts/setup-shared-browser.sh
 
 # 3. ask for a video
 "buatkan motion graphic tentang kenapa kopi bikin ngantuk"
@@ -112,7 +111,8 @@ fills it, and runs the build:
 ```bash
 cd ~/projects/kenapa-kopi-bikin-ngantuk
 cp -r <skill>/scaffold/. .        # once per project, before the first render
-npm install && npx remotion browser ensure
+npm install
+bash <skill>/scaffold/scripts/setup-shared-browser.sh   # once per machine, not per project
 node qc/make-player-host.mjs
 npx remotion render src/index.ts portrait work/render-raw.mp4 --concurrency=8
 ffmpeg -y -i work/render-raw.mp4 -af "loudnorm=I=-16:TP=-1.5:LRA=11" \
@@ -227,6 +227,9 @@ tiga-mitos-otak/
 ├── script.txt              voiceover script, clean text, no labels
 ├── package.json            Remotion + React toolchain
 ├── tsconfig.json           required by Remotion
+├── remotion.config.ts      points at the shared browser
+├── scripts/
+│   └── setup-shared-browser.sh  one-time, per machine
 ├── src/
 │   ├── index.ts            registerRoot(Root) — the entry point
 │   ├── Root.tsx            one <Composition> per orientation
@@ -277,7 +280,7 @@ tiga-mitos-otak/
 | `ffmpeg` + `ffprobe` | rendering, measuring, verification |
 | `node` >= 22 + `npm` | runs the Remotion toolchain |
 | `remotion` 4.0.545 + React 18 | the renderer (installed by `npm install`) |
-| Remotion browser (102 MB) | `npx remotion browser ensure`, once |
+| Remotion browser (243 MB) | `scripts/setup-shared-browser.sh`, once per machine; shared across projects |
 | `whisper.cpp` **or** `faster-whisper` | word-level timing (optional, degrades to estimate) |
 | `GEMINI_API_KEY` | optional TTS when you have no recording (Interactions endpoint) |
 | `yt-dlp` | optional, downloading style references |

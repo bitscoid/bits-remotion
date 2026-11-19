@@ -6,7 +6,7 @@ Copied into a new project folder by the build step, then edited in place.
 cp -r <skill>/scaffold/. ./tiga-mitos-otak/
 cd tiga-mitos-otak
 npm install
-npx remotion browser ensure      # once per machine, 102 MB
+bash scripts/setup-shared-browser.sh   # once per machine: one browser for every project
 ```
 
 What each file is:
@@ -15,6 +15,8 @@ What each file is:
 |---|---|
 | `package.json` | Remotion 4.0.545 + React 18, all `@remotion/*` version-locked |
 | `tsconfig.json` | required — Remotion refuses to start without one |
+| `remotion.config.ts` | points at the shared browser under `~/.cache/remotion/` |
+| `scripts/setup-shared-browser.sh` | one-time: download the browser once, share it |
 | `src/index.ts` | `registerRoot(Root)`; this is the file the CLI receives |
 | `src/Root.tsx` | one `<Composition>` per orientation; **the CLI arg is the `id`** |
 | `src/Timeline.tsx` | places each beat with `<Sequence from durationInFrames>` |

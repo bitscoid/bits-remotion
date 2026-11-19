@@ -102,6 +102,9 @@ tiga-mitos-otak/
 ├── script.txt              voiceover script, clean text, no labels
 ├── package.json            Remotion + React toolchain
 ├── tsconfig.json           required by Remotion
+├── remotion.config.ts      points at the shared browser
+├── scripts/
+│   └── setup-shared-browser.sh  one-time, per machine
 ├── src/
 │   ├── index.ts            registerRoot(Root) — the entry point
 │   ├── Root.tsx            one <Composition> per orientation
@@ -432,7 +435,8 @@ Two checks are not optional because they protect the file itself, and both catch
 
 ```bash
 cp -r <skill>/scaffold/. .                          # once per project
-npm install && npx remotion browser ensure          # once per machine
+npm install
+bash scripts/setup-shared-browser.sh                # once per machine, shares one browser
 node qc/make-player-host.mjs                        # reads src/cue.ts
 mkdir -p out work
 npx remotion render src/index.ts portrait work/render-raw.mp4 --concurrency=8

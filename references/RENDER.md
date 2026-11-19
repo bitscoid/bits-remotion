@@ -31,9 +31,30 @@ fc-list | head -20                   # available fonts
 which curl yt-dlp
 ```
 
-The browser is installed once with `npx remotion browser ensure`; it lives in
-`node_modules/.remotion/` and is 102 MB. If it is missing, every render fails at the
-first frame with a protocol error, so check it before anything else.
+### One browser per machine, not one per project
+
+`npx remotion browser ensure` writes the headless browser into **the project's own**
+`node_modules/.remotion`. Measured: 243 MB per project, thrown away when the folder is
+deleted, and downloaded again by the next `npm install`.
+
+Run this once per machine instead:
+
+```bash
+bash scripts/setup-shared-browser.sh
+```
+
+It downloads the browser once, copies it to `~/.cache/remotion/chrome-headless-shell/`, and
+removes the per-project copy. `remotion.config.ts` already points there.
+
+| | Per project | Shared |
+|---|---|---|
+| `node_modules` | **653 MB** | **411 MB** |
+| Re-download on a new project | yes, 243 MB | no |
+| Survives deleting a project | no | yes |
+
+`BITS_SHARED_BROWSER=0` forces the per-project browser. If the shared path is missing — a new
+machine, a different OS — the config warns once and falls back to whatever `browser ensure`
+installed, instead of failing the render.
 
 ### Vision capability (measured, never assumed)
 

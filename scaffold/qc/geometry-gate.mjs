@@ -21,10 +21,42 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const ROOT = process.cwd();
-const CHROME =
-  process.env.REMOTION_CHROME ??
-  path.join(ROOT, 'node_modules', '.remotion', 'chrome-headless-shell', 'linux64',
-    'chrome-headless-shell-linux64', 'chrome-headless-shell');
+/**
+ * The headless browser, resolved the same way `remotion.config.ts` resolves it.
+ *
+ * The gates launch their own browser, so they cannot read the Remotion config.
+ * Measured failure: after the shared-browser setup, both gates died with
+ * `Browser was not found at the configured executablePath
+ * node_modules/.remotion/...` because they still looked only in the project.
+ *
+ * Order: BITS_BROWSER, the shared cache, the project copy.
+ */
+function resolveChrome(ROOT) {
+  if (process.env.BITS_BROWSER) return process.env.BITS_BROWSER;
+
+  const home = process.env.HOME ?? process.env.USERPROFILE ?? '';
+  const shared = [
+    '.cache/remotion/chrome-headless-shell/linux64/chrome-headless-shell-linux64/chrome-headless-shell',
+    '.cache/remotion/chrome-headless-shell/mac-arm64/chrome-headless-shell-mac-arm64/chrome-headless-shell',
+    '.cache/remotion/chrome-headless-shell/mac-x64/chrome-headless-shell-mac-x64/chrome-headless-shell',
+  ]
+    .map((rel) => path.join(home, rel))
+    .find((p) => fs.existsSync(p));
+  if (shared) return shared;
+
+  const local = path.join(
+    ROOT, 'node_modules', '.remotion', 'chrome-headless-shell', 'linux64',
+    'chrome-headless-shell-linux64', 'chrome-headless-shell',
+  );
+  if (fs.existsSync(local)) return local;
+
+  console.error(
+    'browser not found. Run once per machine: bash scripts/setup-shared-browser.sh',
+  );
+  process.exit(1);
+}
+
+const CHROME = resolveChrome(ROOT);
 
 /** Cap-height ratio per family, measured once. Replace with your own measurement. */
 const CAP_RATIO = {'DejaVu Sans': 0.73, Inter: 0.72, 'JetBrains Mono': 0.73};
