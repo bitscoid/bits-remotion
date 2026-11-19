@@ -1,6 +1,8 @@
 import {AbsoluteFill, Audio, Sequence, interpolate, staticFile, useCurrentFrame, useVideoConfig} from 'remotion';
 import React from 'react';
 import {Scene} from './Scene';
+import {SceneFigure} from './SceneFigure';
+import {SceneStack} from './SceneStack';
 import {CUE, VO_DELAY} from './cue';
 import {MUSIC, STYLE} from './style-brief';
 
@@ -18,6 +20,21 @@ import {MUSIC, STYLE} from './style-brief';
  *    Use <Sequence from=...> instead.
  * 2. useCurrentFrame() inside a <Sequence> is already sequence-local.
  *    Subtracting beat.start again makes the reveal never fire.
+ */
+/**
+ * NO PROGRESS BAR BY DEFAULT.
+ *
+ * The bar that used to sit here protected two real failures: the gap between a
+ * cut and its word (a near-empty frame), and identical frames the encoder reads
+ * as a freeze. Both are properties of the timeline, not of one bar, so they are
+ * checked instead of baked in:
+ *
+ *   - every beat fills the cut-to-word gap with something visible;
+ *   - `freezedetect` returns nothing on the export, or a documented rest.
+ *
+ * Keep motion alive however the beat's idea wants it — a drifting shape, a
+ * breathing field, a camera move, real content. A bar at the same y in every
+ * film is a template. Add one deliberately if the film wants it, and say why.
  */
 export const Timeline: React.FC = () => {
   const {durationInFrames, fps} = useVideoConfig();
@@ -73,37 +90,31 @@ export const Timeline: React.FC = () => {
         </AbsoluteFill>
       </Sequence>
 
+      {/*
+        One shape per beat, chosen by the beat itself (`beat.shape`, from
+        `audio/words.json`). Three shapes ship so the scaffold cannot be read as
+        "a beat is a word on a block":
+
+          word   — a word on an accent field          (Scene.tsx)
+          stack  — lines stacked, a rule draws itself (SceneStack.tsx)
+          figure — no word, a code-built figure       (SceneFigure.tsx)
+
+        Write a fourth when the content wants one: add the file, add the case
+        here, add the key to `Beat['shape']`. Mixing shapes inside a film is the
+        default behaviour, not an advanced option.
+      */}
       {beats.map(({beat, from, duration}) => (
         <Sequence key={beat.id} from={from} durationInFrames={duration}>
-          <Scene beat={beat} />
+          {beat.shape === 'stack' ? (
+            <SceneStack beat={beat} />
+          ) : beat.shape === 'figure' ? (
+            <SceneFigure beat={beat} />
+          ) : (
+            <Scene beat={beat} />
+          )}
         </Sequence>
       ))}
 
-      {/*
-        A shape that moves for the whole film.
-
-        Measured reason: each Scene reveals its card at `wordAt`, so the gap
-        between a cut and its word showed only a small meta label — the contact
-        sheet caught it as a near-empty frame. This rule fills that gap and
-        guarantees the encoder always sees a position change, so a beat can never
-        be read as a freeze. It is a shape, not text, so no text gate sees it.
-      */}
-      <div
-        style={{
-          position: 'absolute',
-          left: 140,
-          top: 1230,
-          height: 6,
-          width: 620,
-          borderRadius: 3,
-          backgroundColor: STYLE.palette.accent,
-          opacity: 0.55,
-          transformOrigin: 'left center',
-          transform: `scaleX(${interpolate(frame, [0, durationInFrames], [0, 1], {
-            extrapolateRight: 'clamp',
-          })})`,
-        }}
-      />
     </AbsoluteFill>
   );
 };

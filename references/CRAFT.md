@@ -22,7 +22,7 @@ Pick the curve by what the move *is*, not by how it feels in the moment.
 | Wind-up before a big move | anticipation, or a small opposite move | 5–10% of the distance |
 | Tactile feedback | spring, damping 10–14, stiffness 170–260 | overshoot only on things that are hit |
 
-Never `linear` for visible motion except constant drifts, progress rules and rotation
+Never `linear` for visible motion except constant drifts and rotation
 loops. Never `scale(0) → 1` for a UI element: start at 0.6–0.85 with opacity.
 
 ## 2. Velocity continuity — the cause of "choppy"

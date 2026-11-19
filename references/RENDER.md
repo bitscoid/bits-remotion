@@ -204,7 +204,7 @@ npx remotion studio src/index.ts  # optional preview
 npx remotion render src/index.ts portrait work/render-raw.mp4 --concurrency=8
 ```
 
-**Measured render times** on a scene with 8 animated shapes, 2 text lines and a progress bar:
+**Measured render times** on a scene with 8 animated shapes and 2 text lines:
 
 | Duration | Frames | Concurrency | Wall |
 |---|---|---|---|
@@ -652,8 +652,16 @@ await page.evaluate(async (seconds) => {
 }, t);
 ```
 
-- **Safe area** — no box crosses 4% of the frame edge. For portrait, the stricter 10% bottom
-  and 12% right also apply; anything that must be read sits at 15% from the bottom.
+- **Safe area** — no box that carries meaning crosses 4% of the frame edge. For portrait, one
+  content box applies on top of it: **13% top, 20% bottom, 5% left and right** — on `1080×1920`
+  that is **x 54..1026, y 250..1536**, 972×1286, **60% of the frame**, centre x 540 (the frame
+  centre) / y 893 (67 px high). The sides are symmetric; only the bottom is wide, because that
+  is where the platforms stack caption, username, audio ticker, progress bar and the OS gesture
+  bar. Below **55% of the height** the action rail (like / comment / share / audio) pulls the
+  right edge in to **88%** — `x ≤ 950`; above that line the full width is free. Anything that
+  must be read sits above 28% from the bottom (y ≤ 1382) — and `caption` counts as readable, so
+  a burned-in caption below that line fails the gate. Landscape keeps the plain 4% edge and no
+  box; text that must be read, and every caption, sits inside 10% title-safe.
 - **Cap height** — CSS `fontSize` is not cap height. The ratio is font-specific: on DejaVu
   Sans Bold, capitals are 0.73× the size. Measure a capital once per face with
   `measureText` and solve for the size. Threshold: 4% of the short side for primary,
@@ -662,7 +670,15 @@ await page.evaluate(async (seconds) => {
   behind the text, not the page background.
 - **Collision** — coverage of two boxes; exclude identical boxes (deliberate overlap).
 
-Add `data-qc="role"` to every text node you want the gate to see.
+Add `data-qc="role"` to every text node you want the gate to see. Use `display` or `readable`
+for anything that must be read, and `caption` for burned-in subtitles — all three are held to
+the read line in portrait and to title-safe in landscape. Paint that may be cropped
+gets `data-qc="deco"` (or `background`/`bleed`): the box skips it, the 4% edge still applies.
+The gate reads the box from the rounded pixels, not the raw fraction, with a 0.5 px tolerance —
+`0.13 × 1920 = 249.6`, so a box drawn exactly to y 250 would otherwise fail by 0.4 px.
+
+These numbers are organic short-form, not an ad spec — see `GUIDE.md` §2. This skill never runs
+`hyperframes check`, so the ad box those guides define is not consulted here.
 
 ### Audio gate
 
@@ -761,11 +777,32 @@ Everything else is reported with its number and a decision.
 
 ## 8. Self-made background music
 
-Only when the user supplies none. Generate a simple ambient pad with ffmpeg —
-several chord tones layered at low volume, plus a light pulse. Export as 48 kHz WAV into
-`public/music.wav` and reference it with `staticFile`.
+Only when the user supplies none. Use the bundled generator — a one-chord pad is what made
+every film from these skills sound the same:
 
-Tell the user plainly that this is simple synthesised music, not a professional composition.
+```bash
+python3 <skill>/scripts/make_music.py --duration 52 --out public/music.wav --tempo 84 --mood warm
+```
+
+`<skill>` is this skill's own directory; the generator ships with the skill, so the
+project folder stays free of build tooling. Run it from the project folder.
+
+It writes 48 kHz stereo 16-bit WAV at exactly `--duration` (no loop needed), peak −6 dBFS,
+1.2 s fade-in, and a fade-out that lands on a floor. Reference it with `staticFile`.
+
+The bed is a four-chord progression (two bars per chord): a detuned two-voice pad per chord, a
+root bass on beats 1 and 3, a plucked arpeggio on eighths that alternates pan, and a soft noise
+breath at each chord change.
+
+| Flag | Values | Choose by |
+|---|---|---|
+| `--mood` | `warm` (Am–F–C–G) · `dark` (Dm–B♭–F–C) · `bright` (C–Em–Am–F) | the topic's tone; `dark` for history/analysis, `bright` for light explainers |
+| `--tempo` | 60–100, default 84 | the film's cut rhythm; keep it below the cut rate so it never fights the narration |
+
+Pick a different `--mood`/`--tempo` per film instead of reusing one bed across a series.
+
+Tell the user plainly that this is synthesised music — a progression and a pulse generated in
+code, not a composed track — and suggest royalty-free music when they want more.
 
 Optional synthetic SFX for transitions:
 
@@ -807,9 +844,10 @@ ffmpeg -f lavfi -i "anoisesrc=d=0.4:c=pink:a=0.5" \
   sheet showed rows 2 and 3 as duplicates. Drift across the whole beat.
 - **A card revealed only at `wordAt` leaves the cut empty.** Measured: the ~0.4 s between a
   cut and its word showed one small meta label and nothing else, and the contact sheet flagged
-  it as a near-empty frame. Keep a shape moving across the whole composition — a progress rule
-  at `scaleX 0→1` over `durationInFrames`. It fills the gap and guarantees the encoder sees a
-  position change, so a beat can never be read as a freeze.
+  it as a near-empty frame. Fill the gap with what the beat's idea wants — a drifting shape, a
+  breathing field, a camera push, content already on its way — and prove it with `freezedetect`
+  returning nothing. A progress bar at the same y in every film is a template; add one
+  deliberately if the film wants it, and say why.
 - **A large word placed by `top` sits on its baseline box, not inside a block.** Measured
   on the render: a 132 px display word at `top: 1040` with a block at `top: 1120` straddled
   the block's top edge, half on black and half on orange. Give the block a `lineHeight: 1`

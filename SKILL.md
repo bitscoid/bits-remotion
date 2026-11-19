@@ -190,6 +190,12 @@ Tool configuration the Remotion pipeline needs — `package.json`, `tsconfig.jso
 - Decide the title in stage 1 alongside the script, and tell the user the slug before writing any file.
 - `work/` can be created at any point, and `rm -rf work` costs only rebuildable seconds: user inputs stay in `audio/` and `assets/`, and the one non-reproducible derived file — `audio/words.json` — lives in `audio/` beside its source. Re-render restores the full video with identical timing.
 
+## Bundled helpers
+
+| Script | Does |
+|---|---|
+| `scripts/make_music.py` | synthesises the background bed — four-chord progression, root bass, plucked arpeggio, noise breath at each chord change. Exact duration, 48 kHz stereo WAV, peak −6 dBFS. Flags: `--duration --out --tempo --mood`; see `references/RENDER.md` §8 |
+
 ## Workflow
 
 Follow this order. Do not jump to render before stages 1–3 are done.
@@ -244,7 +250,7 @@ kecuali suara — suara yang menentukan panjang dan penyesuaian waktu video.
    dari naskah yang sudah Anda setujui.
 
 2. Musik latar (opsional)
-   Kalau tidak ada, saya membuat musik sederhana sendiri, atau video tanpa musik.
+   Kalau tidak ada, saya membuat musik latar sintetis sendiri (progresi akor + bass, bukan lagu jadi), atau video tanpa musik.
 
 3. Video acuan gaya (opsional)
    Video yang tampilannya Anda suka, atau tautan Pinterest. Kalau tidak ada,
@@ -274,7 +280,7 @@ tipografinya.
 | Media | Lands at | Status | If the user has none |
 |---|---|---|---|
 | Voiceover recording | `public/voiceover.wav` | Strongly recommended; it is the timing source | See "Without a voiceover" below |
-| Background music | `public/music.wav` | Optional | You generate simple music, or render silent |
+| Background music | `public/music.wav` | Optional | `scripts/make_music.py` generates a chord-progression bed, or render silent |
 | Style reference video | `assets/reference.mp4` | Optional | Search Pinterest for `motion graphics` + topic keywords (stage 3); if nothing fits, design the style yourself |
 | Supporting images (1st, 2nd, …) | `public/image-01.png`, `public/image-02.png`, … | Optional | You find suitable images online, draw them in code, or both |
 | Screen orientation | — | Asked with the script in stage 1; repeat here only if still open | Default landscape 1920×1080 → cap 300 s; portrait 1080×1920 → cap 60 s |
@@ -428,7 +434,7 @@ Read both reference documents before building anything:
 - `references/RENDER.md` — environment check, fonts, the Remotion pipeline, ffmpeg commands, verification.
 - `references/CRAFT.md` — curve per role, the carrier contract for scene handoffs, and the review flags.
 
-**Write QC checks yourself** when you need them. The rules are already complete in prose: safe area, two-tier cap height, WCAG contrast, text collision (coverage), and repetition patterns — all in `GUIDE.md` §2 and `RENDER.md` §7. The scaffold ships both gates (`qc/sync-gate.mjs`, `qc/geometry-gate.mjs`); extend them against your own `data-qc` roles.
+**Write QC checks yourself** when you need them. The rules are already complete in prose: safe area, two-tier cap height, WCAG contrast, text collision (coverage), and repetition patterns — all in `GUIDE.md` §2 and `RENDER.md` §7. The scaffold ships the gates (`qc/sync-gate.mjs`, `qc/geometry-gate.mjs`, `qc/safe-band-check.mjs`); extend them against your own `data-qc` roles. Tag paint that may bleed with `data-qc="deco"` (or `background`/`bleed`) so the portrait band skips it while the 4% edge still applies.
 
 Two checks are not optional because they protect the file itself, and both catch failures that look fine on screen:
 - **frame count equals `DUR × 30`** in the exported file (`RENDER.md` §7) — a truncated render passes every visual check;
@@ -535,7 +541,7 @@ Yang saya buat otomatis
 - [naskah / suara / musik / elemen grafis — sebutkan yang benar-benar otomatis]
 
 Catatan
-- [musik sintetis, bukan komposisi profesional]
+- [musik sintetis: progresi akor, bass, dan arpeggio dibuat lewat kode — bukan lagu jadi]
 - [waktu per kata hanya perkiraan, karena pengenalan suara tidak tersedia]
 - [berkas antara sudah dihapus]
 

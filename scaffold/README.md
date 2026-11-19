@@ -28,7 +28,8 @@ What each file is:
 | `qc/type-gate.mjs` | fails until a register is chosen, loadable and measurable |
 | `qc/player-entry.tsx` | exposes `window.__ready` and `window.__seekTo(s)` |
 | `qc/sync-gate.mjs` | proves each text appears at its word and not before |
-| `qc/geometry-gate.mjs` | safe area, platform band, cap height, collision; cap ratios come from `src/type-presets.ts` |
+| `qc/geometry-gate.mjs` | edge, portrait content box, action rail, read line, landscape title-safe, cap height, collision; cap ratios come from `src/type-presets.ts` |
+| `qc/safe-band-check.mjs` | asserts the box and rail in the gate match their sources — runs in ms, no browser |
 | `qc/sync-cases.json` | optional extra cases; the derived keywords always run |
 
 `qc/sync-cases.json` ships as `[]` on purpose. The keywords the composition draws
@@ -58,7 +59,16 @@ geometry gate has no ratio table of its own.
 Pass `--orientation=landscape` to `qc/make-player-host.mjs` for a landscape film; it reads the
 matching `<Composition>` instead of the first one in `Root.tsx`. The geometry gate reads the
 frame size from the same query, so a landscape film skips the portrait platform band and is
-measured on the frame it will actually render.
+measured on the frame it will actually render — 4% edge, 10% title-safe for readable text.
+
+The portrait content box is 13% top, 20% bottom, 5% on both sides — `x 54..1026,
+y 250..1536` on 1080×1920 (972×1286, 60% of the frame), horizontally centred, readable text
+above y 1382. Below 55% of the height (`y > 1056`) the action rail pulls the right edge in to
+88% (`x ≤ 950`); above that line the full width is free. `data-qc="deco"` opts paint out of the
+box; the 4% edge still applies to it.
+
+These are organic short-form numbers, not an ad spec (`GUIDE.md` §2). This scaffold never runs
+`hyperframes check`, so the ad box those guides define is not consulted.
 
 A sample list for a different script was shipped first and made every new project
 fail its first gate run with three false "missing or late" findings.

@@ -51,12 +51,32 @@ export const STYLE = {
     metaSizePx: 38,
     accentSizePx: 58,
   },
+  /**
+   * Safe margins as fractions of the frame — the one organic content box.
+   *
+   * On 1080x1920: x 54..1026, y 250..1536 (972x1286, 60% of the frame).
+   * Horizontally centred (box centre x 540 = frame centre); vertically 67 px
+   * high, because the platforms stack their UI at the bottom. Readable text
+   * above y 1382 (28% from the bottom).
+   *
+   * Organic short-form numbers; see GUIDE.md §2 for the sources.
+   *
+   * `safeEdge` and `safeReadEdge` are the landscape numbers; the box does not
+   * apply to a 16:9 frame.
+   */
   layout: {
     massSide: 'left',
     emptyPercent: 55,
-    safeBottom: 0.10,
-    safeRight: 0.12,
-    safeReadBottom: 0.15,
+    safeTop: 0.13,
+    safeBottom: 0.20,
+    safeLeft: 0.05,
+    safeRight: 0.05,
+    safeReadBottom: 0.28,
+    /** Action rail: below this height the right edge pulls to 1 - railInsetRight. */
+    railFromY: 0.55,
+    railInsetRight: 0.12,
+    safeEdge: 0.04,
+    safeReadEdge: 0.10,
   },
   graphics: {
     radius: 16,

@@ -96,12 +96,62 @@ const SAMPLES = Number(process.env.QC_SAMPLES ?? 9);
  * Platform floors, as fractions of the frame.
  *
  * `edge` holds for both orientations — one number, so there is never a second
- * truth about it. `bottom` and `right` are the *portrait* Reels/TikTok floors:
- * they describe a 1080x1920 phone UI, and applying them to a 1920x1080 frame
- * flags correctly placed landscape text. A landscape film gets the edge rule
- * and the cap-height tier, nothing else.
+ * truth about it. It applies to every element that carries meaning; backgrounds
+ * and meaningless shapes may bleed.
+ *
+ * `portrait` is the one content box for organic short-form: top 13%, bottom
+ * 20%, 5% on both sides — on 1080x1920 that is x 54..1026, y 250..1536
+ * (972x1286, 60% of the frame, centre x 540 / y 893: horizontally the frame
+ * centre, vertically 67 px high because the platforms stack their UI at the
+ * bottom).
+ *
+ * `rail` is the second, narrower rule: the action buttons (like, comment,
+ * share, audio) sit down the lower right, so below 55% of the height the right
+ * edge pulls in to 88%. Above that line the full 5% margin applies.
+ *
+ * Organic short-form numbers; see GUIDE.md §2. Landscape gets `edge` alone plus
+ * `readEdge` (Adobe title-safe) for text that must be read — no portrait box,
+ * because no feed UI overlays a 16:9 player.
  */
-const SAFE = {edge: 0.04, bottom: 0.10, right: 0.12, readBottom: 0.15};
+const SAFE = {
+  edge: 0.04,
+  portrait: {top: 0.13, bottom: 0.20, left: 0.05, right: 0.05, readBottom: 0.28},
+  /** Action rail: below `fromY`, the right edge pulls in to `1 - insetRight`. */
+  rail: {fromY: 0.55, insetRight: 0.12},
+  readEdge: 0.10, // landscape title-safe (Adobe 80% box)
+};
+/**
+ * Roles that must be readable; everything else is decorative or supporting.
+ * `caption` is in here because a burned-in caption outside the read line is a
+ * defect: it is the accessibility layer, not decoration.
+ */
+const READABLE = new Set(['display', 'readable', 'caption']);
+/**
+ * Roles with no meaning: a background wash, a grain plate, a shape that may be
+ * cropped. They keep the 4% edge but may bleed past the portrait band — the
+ * band protects content, not paint.
+ */
+const DECO = new Set(['deco', 'background', 'bleed']);
+
+/**
+ * The box as pixels, rounded once. Percent floors land on fractions
+ * (0.20 x 1920 = 384 exactly, but 0.13 x 1920 = 249.6), so a box drawn exactly
+ * to the rounded edge would fail by a fraction of a pixel and the finding would
+ * read as noise. Compare against the rounded box with a 0.5 px tolerance.
+ */
+const bandBox = (W, H) => {
+  const P = SAFE.portrait;
+  return {
+    x0: Math.round(W * P.left),
+    x1: Math.round(W * (1 - P.right)),
+    y0: Math.round(H * P.top),
+    y1: Math.round(H * (1 - P.bottom)),
+    readY1: Math.round(H * (1 - P.readBottom)),
+    railY: Math.round(H * SAFE.rail.fromY),
+    railX1: Math.round(W * (1 - SAFE.rail.insetRight)),
+  };
+};
+const EPS = 0.5;
 
 const host = path.join(ROOT, 'work', 'player-host.html');
 const queryFile = path.join(ROOT, 'work', 'player-host.query');
@@ -167,9 +217,34 @@ for (let i = 1; i <= SAMPLES; i++) {
         b.y < H * SAFE.edge || b.y + b.h > H * (1 - SAFE.edge)) {
       findings.push(`t=${t.toFixed(1)}s safe-area: "${b.text}" box ${Math.round(b.x)},${Math.round(b.y)} ${Math.round(b.w)}x${Math.round(b.h)}`);
     }
-    // 2) portrait platform band
-    if (PORTRAIT && (b.y + b.h > H * (1 - SAFE.bottom) || b.x + b.w > W * (1 - SAFE.right))) {
-      findings.push(`t=${t.toFixed(1)}s platform-band: "${b.text}" crosses the ${Math.round(SAFE.bottom * 100)}% bottom / ${Math.round(SAFE.right * 100)}% right floor`);
+    // 2) portrait content box, then the action rail on the lower right.
+    //    Skipped for decorative paint, which keeps the 4% edge above.
+    if (PORTRAIT && !DECO.has(b.role)) {
+      const P = SAFE.portrait;
+      const box = bandBox(W, H);
+      const over = [];
+      if (b.y < box.y0 - EPS) over.push(`top ${Math.round(P.top * 100)}% (y ${box.y0})`);
+      if (b.y + b.h > box.y1 + EPS) over.push(`bottom ${Math.round(P.bottom * 100)}% (y ${box.y1})`);
+      if (b.x < box.x0 - EPS) over.push(`left ${Math.round(P.left * 100)}% (x ${box.x0})`);
+      if (b.x + b.w > box.x1 + EPS) over.push(`right ${Math.round(P.right * 100)}% (x ${box.x1})`);
+      if (over.length) {
+        findings.push(`t=${t.toFixed(1)}s safe-box: "${b.text}" crosses ${over.join(', ')} of the portrait box`);
+      }
+      // The action rail only exists below the line: above it the full width is free.
+      if (b.y + b.h > box.railY && b.x + b.w > box.railX1 + EPS) {
+        findings.push(`t=${t.toFixed(1)}s action-rail: "${b.text}" right edge ${Math.round(b.x + b.w)}px passes x ${box.railX1} below y ${box.railY} (like/comment/share sit there)`);
+      }
+      // read line: anything that must be read sits above 28% from the bottom.
+      // `caption` is in READABLE, so a burned-in caption below this fails too.
+      if (READABLE.has(b.role) && b.y + b.h > box.readY1 + EPS) {
+        findings.push(`t=${t.toFixed(1)}s read-band: "${b.text}" bottom ${Math.round(b.y + b.h)}px is below the ${Math.round(P.readBottom * 100)}% read line (${box.readY1}px)`);
+      }
+    } else if (READABLE.has(b.role)) {
+      // 2b) landscape: title-safe for readable text, no platform band
+      if (b.y < H * SAFE.readEdge || b.y + b.h > H * (1 - SAFE.readEdge) ||
+          b.x < W * SAFE.readEdge || b.x + b.w > W * (1 - SAFE.readEdge)) {
+        findings.push(`t=${t.toFixed(1)}s title-safe: "${b.text}" is outside the ${Math.round(SAFE.readEdge * 100)}% title-safe box`);
+      }
     }
     // 3) cap height
     const ratio = CAP_RATIO[b.family] ?? 0.72;
@@ -207,7 +282,7 @@ if (unique.length) {
   console.log(
     `geometry gate OK: ${SAMPLES} samples, edge ${SAFE.edge}, ` +
       (PORTRAIT
-        ? `portrait band ${SAFE.bottom}/${SAFE.right}`
-        : 'no portrait band (landscape)'),
+        ? `portrait box x ${bandBox(W, H).x0}..${bandBox(W, H).x1}, y ${bandBox(W, H).y0}..${bandBox(W, H).y1}, read line ${bandBox(W, H).readY1}, rail x ${bandBox(W, H).railX1} below y ${bandBox(W, H).railY}`
+        : `no portrait band (landscape), title-safe ${SAFE.readEdge}`),
   );
 }

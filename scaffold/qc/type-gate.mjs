@@ -54,7 +54,11 @@ if (!m) {
     `TYPE_PRESET is empty. Pick the topic's register in stage 4, then set one of:\n    ${keys.join('\n    ')}`,
   );
 } else if (!keys.includes(chosen)) {
-  findings.push(`TYPE_PRESET "${chosen}" is not a preset. Valid keys:\n    ${keys.join('\n    ')}`);
+  findings.push(
+    `TYPE_PRESET "${chosen}" is not a preset, and is not "custom". Valid keys:\n    ` +
+      keys.join('\n    ') +
+      '\n    custom — declare BITS_TYPE_CUSTOM {display, meta, accent} and an @font-face per face',
+  );
 }
 
 /** The `{...}` body of one preset, so a scan stops at the next key. */

@@ -117,6 +117,7 @@ node qc/make-player-host.mjs
 npx remotion render src/index.ts portrait work/render-raw.mp4 --concurrency=8
 ffmpeg -y -i work/render-raw.mp4 -af "loudnorm=I=-16:TP=-1.5:LRA=11" \
   -c:v copy -c:a aac -b:a 192k -ar 48000 out/kenapa-kopi-bikin-ngantuk.mp4
+node qc/safe-band-check.mjs        # box constants match the sources, no browser
 node qc/sync-gate.mjs && node qc/geometry-gate.mjs
 ```
 
@@ -126,7 +127,7 @@ node qc/sync-gate.mjs && node qc/geometry-gate.mjs
 | `out/publish.txt` | caption, description, hashtags |
 | `src/` | the whole visual design |
 | `audio/words.json` | the timing table, durable |
-| `qc/` | the two gates |
+| `qc/` | the gates, plus the box assertion |
 
 Re-running the render in the same folder produces the same video from the same inputs.
 
@@ -165,7 +166,7 @@ Word-count estimation is the documented fallback, clearly labelled as approximat
 <details open>
 <summary><b>📐 Typography geometry</b></summary>
 
-- Safe area: **4%** from every edge — and for portrait short-form, **10% from the bottom / 12% from the right** as the floor, with anything that must be read kept at **15% from the bottom** because the platform UI sits over that band
+- Safe area: **4%** from every edge for anything that carries meaning. Portrait adds one content box: **13% top / 20% bottom / 5% on both sides** — `x 54..1026, y 250..1536` on 1080×1920, 972×1286, **60% of the frame**, horizontally centred. Below **55% of the height** the action rail (like/comment/share) pulls the right edge to **88%** (`x ≤ 950`). Text that must be read stays above **28% from the bottom** (y ≤ 1382). Landscape keeps 4%, with **10%** title-safe for readable text
 - **Cap height**, not font size: **4%** of the short side for primary text, **2.5%** for supporting text (1080p landscape → 43 px / 27 px). Measured once per face with `measureText`, never from a string's box
 - Centring is measured from the rendered box, never delegated to `text-align` alone
 - Text collision checked by **coverage of the smaller box (< 0.02)**, not IoU — IoU 0.16 lets a 20% line overlap pass
@@ -241,7 +242,8 @@ tiga-mitos-otak/
 │   ├── player-entry.tsx    the in-page harness
 │   ├── make-player-host.mjs
 │   ├── sync-gate.mjs       proves text appears after its word
-│   ├── geometry-gate.mjs   safe area, cap height, collision
+│   ├── geometry-gate.mjs   edge, portrait box, read line, title-safe, cap height, collision
+│   ├── safe-band-check.mjs asserts the box and rail (no browser)
 │   └── sync-cases.json     optional extra cases
 ├── audio/
 │   └── words.json          word-level timing; DURABLE, never deleted
@@ -321,7 +323,7 @@ Then verifies it before use — under 10 KB means an HTML error page, not a font
 
 ## ⚠️ Honest limits
 
-- Music is **synthesised** unless you supply your own — simple chords, not a composition
+- Music is **synthesised** unless you supply your own — a generated chord progression (pad, bass, arpeggio), not a composition
 - Word timing is **approximate** when ASR is unavailable, and the delivery message says so
 - The agent cannot watch the video; visual QC relies on extracted frames, contact sheets, and measured numbers
 - Capped at **60 s portrait / 300 s landscape** — a five-minute explainer, not a documentary tool

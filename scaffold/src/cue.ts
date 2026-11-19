@@ -35,6 +35,26 @@ export type Beat = {
    * Set it in `audio/words.json` per segment as `annotation`.
    */
   annotation: string;
+  /**
+   * Which example shape this beat uses: 'word' | 'stack' | 'figure'.
+   *
+   * Default 'word'. A film whose beats are all 'word' is the template this
+   * scaffold used to guarantee — mix the shapes when the content allows, or
+   * write a fourth shape and add it to the switch in `Timeline.tsx`.
+   *
+   * Set it in `audio/words.json` per segment as `shape`.
+   */
+  shape: 'word' | 'stack' | 'figure';
+  /**
+   * OPTIONAL metainformation. A scene index, a chapter name, a source.
+   *
+   * Leave it empty and no label is drawn. Measured: a corner label in every
+   * beat is one of the three tells that make a film read as a template
+   * (GUIDE §6). Most beats do not need one.
+   *
+   * Set it in `audio/words.json` per segment as `label`.
+   */
+  label: string;
 };
 
 type Segment = {
@@ -46,6 +66,10 @@ type Segment = {
   keyword?: string;
   /** Optional handwritten aside, drawn in the accent family. */
   annotation?: string;
+  /** 'word' | 'stack' | 'figure' — which example shape this beat uses. */
+  shape?: 'word' | 'stack' | 'figure';
+  /** Optional label; omit it and nothing is drawn. */
+  label?: string;
   words: {word: string; start: number; end: number}[];
 };
 
@@ -84,6 +108,12 @@ export const CUE: Beat[] = file.segments.map((seg, i) => ({
   vo: seg.text,
   text: keywordFor(seg),
   annotation: seg.annotation ?? '',
+  // no shape and no label by default: both are choices, not house style.
+  // 'word' is the fallback shape only because a beat has to be rendered by
+  // something — a film that never sets `shape` gets three of them and should
+  // notice.
+  shape: seg.shape ?? 'word',
+  label: seg.label ?? '',
 }));
 
 /**

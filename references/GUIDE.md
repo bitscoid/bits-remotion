@@ -49,9 +49,31 @@ Rules:
 - **Uppercasing a claim changes who appears to say it.** Caps read as the video's own assertion, so a myth, a quote or a reported claim set in caps can look endorsed. If the design wants caps there, check that the meaning survives; proper nouns keep their spelling either way.
 - **Caps usually want tracking.** Without it, an uppercase line reads as a form rather than a label. Keep the line short, and measure the **cap height** — not the full ascender-to-descender box, which adds descenders and makes a lowercase-only line look far smaller than its caps — against the size tier. Uppercase lines are uniform height, so the size that clears 2.5% in mixed case will usually not clear it in caps.
 - Avoid decorative capitalisation inside sentence-case copy, hard-to-read faces, and ornamental excess.
-- Respect the safe area: important elements stay at least **4%** from the frame edge — one number, so there is never a second truth about it (the geometry gate in `RENDER.md` §7 uses 4%).
+- Respect the safe area: nothing that carries meaning leaves **4%** of the frame edge. One number for both orientations, so there is never a second truth about it (the geometry gate in `RENDER.md` §7 uses 4%). Backgrounds, gradients, grain and shapes with no meaning may bleed to the edge.
 
-  **Short-form platforms need more.** 4% is the floor for the file itself; Reels, TikTok, Shorts and Stories overlay their own captions, buttons and progress bar on the bottom and right of the frame, and that band varies by app version and layout. For a **portrait** export (`1080×1920`) the project's floor is **10% from the bottom and 12% from the right**, and the delivery message states the zone used. Treat the 10% as a minimum, not a target: anything that has to be read — a keyword, a number, a verdict — is safer at **15% from the bottom**. Landscape/YouTube keeps the plain 4%. The 4% gate still runs on everything; the platform band is a second, stricter margin applied on top for portrait.
+  **Portrait gets one content box, and it is symmetric.** On `1080×1920`: **13% top, 20% bottom, 5% left and right** — `x 54..1026, y 250..1536`, a 972×1286 box covering **60% of the frame**, centre x 540 / y 893. The sides are symmetric, so the horizontal centre is the frame centre; only the vertical centre sits 67 px high, which ordinary centring absorbs.
+
+  ```css
+  .content { position: absolute; inset: 13% 5% 20% 5%; }
+  ```
+
+  The bottom margin is wider than the top because that is where the **main short-form platforms** stack their UI — caption, username, audio ticker, progress bar, OS gesture bar — while the top carries only a header. (This box is for short-form posts; a 15 s Story reserves a little more.) Two sources in this repo describe organic short-form and agree on the size: `_vendor/explainer-video-skills/skills/wrapped-video/references/scene-grammar.md` (top 12%, bottom 18%, sides 5%) and `_vendor/motioner/references/typography.md` (top 250 px, bottom 400 px on a 1080-wide frame). Top is 13% to clear the taller of the two.
+
+  **One asymmetry survives, and it is not a margin — it is the action rail.** TikTok and Shorts draw like / comment / share / audio in a strip down the lower right. Below **55% of the frame height** (`y > 1056`) that strip pulls the right edge in to **88%** (`x ≤ 950`). Above the line the full 5% margin applies, so titles and top-half composition keep the whole width.
+
+  ```css
+  .below-rail { right: 12%; }   /* only for boxes whose bottom passes y 55% */
+  ```
+
+  Anything that must be read — a keyword, a number, a verdict — sits above **28% from the bottom** (`y ≤ 1382`), clear of a two-line caption.
+
+  **Why not the ad guide.** `@hyperframes/core/dist/safeAreas.js` is a set of *"Vertical-ad guides"*: it reserves 35% of the bottom for a CTA button, legal line and shop card that a normal post never draws, and designing to it empties the lower third of the frame. That is the bug this box exists to correct.
+
+  The 4% edge rule still runs on everything that carries meaning; the content box is a second, stricter margin applied on top of it for **content**, and the delivery message states the box used.
+
+  Landscape keeps the plain **4%** edge, because no feed UI overlays a 16:9 player. Anything that must be read — and **every burned-in caption** — sits inside **10%** (Adobe title-safe: `x 192..1728, y 108..972` on `1920×1080`). Nothing obeys the portrait box.
+
+  A caption near the bottom edge is the trap here: the common 80–120 px floor (`_install/node_modules/hyperframes/dist/skills/media-use/audio/references/captions/authoring.md`) lands at `y 960..1000`, which crosses the title-safe line at `y 972`. Put the caption **inside** the box — its baseline at `y 972` reads as 108 px from the bottom and costs nothing an audience notices, while a caption outside title-safe loses its descenders on a TV or a cropped player.
 - The smallest text must stay legible at output resolution. **The threshold is cap height, not font size.** Two tiers, measured as a fraction of the **short side** so portrait and landscape share one number:
 
   | Tier | Cap height | Short side 1920 | Short side 1080 |
@@ -204,7 +226,25 @@ scene["vary"] = dict(
 )
 ```
 
-Two identical neighbours can be a deliberate pair (a before/after, a repeat motif). Three in a row is the signature of a template unless you have a written reason. `RENDER.md` §7's repetition gate measures the same thing from the rendered pixels and prints it; this vector is what you consult while planning, before any frame is drawn.
+Two identical neighbours can be a deliberate pair (a before/after, a repeat motif). Three in a row is the signature of a template unless you have a written reason.
+
+### The three defaults that make a film read as a template
+
+These are the specific habits that produce "same video, different words". None is forbidden;
+each has to be a decision, not an assumption:
+
+1. **A label in the same corner of every scene.** A scene index is metainformation; a corner
+   slot is one way to place it. Vary it with the composition, or drop it — many beats need no
+   label.
+2. **A progress bar at one fixed y.** It exists to stop a near-empty cut and an encoder freeze.
+   Those are checks, not a graphic: prove `freezedetect` is empty and fill the gap with what the
+   beat is doing. If a bar is genuinely the design, use it and say so.
+3. **The same accent block behind every keyword.** A keyword on a coloured block is one
+   mechanism among many (field, stack, cut-out, outline, negative space, oversized bleed).
+   Reusing it every beat means the mechanism was never chosen.
+
+A fourth, harder to see: **one density for the whole film.** Dense beats need airy neighbours
+or the viewer stops reading — that is the variation vector above. `RENDER.md` §7's repetition gate measures the same thing from the rendered pixels and prints it; this vector is what you consult while planning, before any frame is drawn.
 
 ## 7. Sync with the voiceover
 
@@ -231,4 +271,4 @@ Text without a supporting word in the voiceover remains legitimate (silent empha
 - Music must be **looped to the video length**, not played once (`-stream_loop -1`). A 10 s track on a 28 s video otherwise leaves 18 s of silence.
 - If you download a track instead of synthesising one, apply the same licence rule as images (`RENDER.md` §4): public domain, CC0, or an explicit permissive licence, credited in the delivery message.
 
-If the user has no music: build simple background music that fits the visual style (`RENDER.md` §8) and say plainly that it is synthesised music. Alternatively render silent and suggest the user add royalty-free music.
+If the user has no music: generate the bed with `scripts/make_music.py` (see `RENDER.md` §8 for the flags) and say plainly that it is synthesised music. Alternatively render silent and suggest the user add royalty-free music.
