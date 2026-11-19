@@ -2,8 +2,12 @@
  * STYLE BRIEF — the ten lines read from the reference (RENDER.md §4).
  * Replace every value. A brief that could describe any motion-graphics video
  * has not been read.
+ *
+ * The beat table is NOT here: it comes from `cue.ts`, which reads the ASR
+ * output so the reveal times cannot drift from the words actually spoken.
  */
 export const STYLE = {
+  title: 'Kenapa kopi\nbikin ngantuk?',
   palette: {
     ground: '#0B0B0F',   // 70% of frame
     ink: '#F5F1EA',      // 20%
@@ -14,13 +18,15 @@ export const STYLE = {
     metaFamily: 'JetBrains Mono',
     displayWeight: 900,
     metaWeight: 500,
-    titleToMeta: 6,      // ratio
+    titleToMeta: 6,
     capTrackingPx: 6,
+    /** 2.5% of a 1080 short side is 27 px of cap height; at 0.72x that is 38 px. */
+    metaSizePx: 38,
   },
   layout: {
     massSide: 'left',
     emptyPercent: 55,
-    safeBottom: 0.10,    // portrait platform floor
+    safeBottom: 0.10,
     safeRight: 0.12,
     safeReadBottom: 0.15,
   },
@@ -40,7 +46,7 @@ export const STYLE = {
   rhythm: {
     cutMinS: 0.9,
     cutMaxS: 1.4,
-    holds: [{at: 'close', seconds: 2.6}],
+    holds: [{at: 'close', seconds: 2.0}],
   },
   sound: {
     sfxOnMaskTransition: true,
@@ -51,36 +57,11 @@ export const STYLE = {
     chapterCount: 3,
     callback: 'circle',
   },
+  /** The one device this build takes from the reference, as a principle. */
   device: 'text enters from behind an object',
+  /** The one decision not taken from the reference. */
   floor: 'the ledger line recurs three times, none of them in the reference',
 } as const;
 
-export type Beat = {
-  id: string;
-  /** Video seconds where the scene mounts. */
-  start: number;
-  /**
-   * Video seconds where the spoken word lands. The display text must not be on
-   * screen before this — the sync gate (RENDER.md §7) proves it is not.
-   * Never equal to `start` unless the scene opens on the word itself.
-   */
-  wordAt: number;
-  vo: string;
-  text: string;
-};
-
-/**
- * The one absolute-time table. Every scene reads it; scene boundaries come from
- * ASR sentence boundaries, not typed by hand twice.
- *
- * `start` drives the cut. `wordAt` drives the text reveal. Keeping them apart is
- * what makes the sync gate meaningful.
- */
-export const CUE: Beat[] = [
-  {id: 'hook', start: 1.0, wordAt: 1.55, vo: 'Kenapa kopi bikin ngantuk?', text: 'ngantuk'},
-  {id: 'b1', start: 4.2, wordAt: 4.72, vo: 'Kafein memblokir adenosin.', text: 'adenosin'},
-  {id: 'close', start: 7.0, wordAt: 7.46, vo: 'Efeknya hilang enam jam.', text: '6 jam'},
-];
-
-/** The lead-in before speech starts, read from audio/words.json at build time. */
-export const VO_DELAY = 1.0;
+/** The music bed. `null` when the film has no music. */
+export const MUSIC: {volume: number} | null = null;

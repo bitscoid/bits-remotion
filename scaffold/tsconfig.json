@@ -7,9 +7,10 @@
     "strict": true,
     "skipLibCheck": true,
     "esModuleInterop": true,
-    "lib": ["ES2022", "DOM"],
+    "resolveJsonModule": true,
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "noEmit": true,
     "forceConsistentCasingInFileNames": true
   },
-  "include": ["src"]
+  "include": ["src", "qc", "audio/words.json"]
 }

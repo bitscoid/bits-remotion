@@ -1,66 +1,78 @@
-import {AbsoluteFill, Sequence, useVideoConfig} from 'remotion';
+import {AbsoluteFill, Audio, Sequence, interpolate, staticFile, useVideoConfig} from 'remotion';
 import React from 'react';
 import {Scene} from './Scene';
-import {CUE, STYLE, VO_DELAY} from './style-brief';
+import {CUE, VO_DELAY} from './cue';
+import {MUSIC, STYLE} from './style-brief';
 
 /**
  * The timeline.
  *
- * Two facts measured on this scaffold, both easy to get wrong:
+ * Audio lives HERE, not inside Scene. Measured bug: an <Audio> inside a
+ * component mounted once per <Sequence> restarts the file at every beat, so the
+ * narration played from second 0 three times and was silent between beats.
  *
- * 1. <Series.Sequence> stacks children back to back. It does not honour a start
- *    time, so a 1 s lead-in has to be its own <Sequence> or every beat shifts
- *    one second early. Measured symptom: text revealed at 4.72 s appeared at
- *    3.72 s.
+ * Two more facts measured on this scaffold:
  *
- * 2. useCurrentFrame() inside a <Sequence> is ALREADY local to that sequence.
- *    Subtracting `beat.start` again produced a large negative frame, so the
- *    reveal never fired. Measured symptom: opacity stayed 0 for the whole beat.
- *
- * So: durations come from CUE, and each Scene receives the local frame it needs.
+ * 1. <Series.Sequence> stacks children back to back and ignores a start time,
+ *    so a 1 s lead-in has to be its own <Sequence> or every beat shifts early.
+ *    Use <Sequence from=...> instead.
+ * 2. useCurrentFrame() inside a <Sequence> is already sequence-local.
+ *    Subtracting beat.start again makes the reveal never fire.
  */
 export const Timeline: React.FC = () => {
   const {durationInFrames, fps} = useVideoConfig();
 
+  const music = MUSIC;
   const leadIn = Math.round(VO_DELAY * fps);
 
-  // The title card during the lead-in. Without it the opening second is an
-  // empty canvas — measured on the contact sheet: two blank thumbnails.
-  const TITLE = 'Kenapa kopi\nbikin ngantuk?';
-
-  // Durations only — Sequence places them consecutively.
   const beats = CUE.map((beat, i) => {
     const from = Math.round(beat.start * fps);
     const to = i + 1 < CUE.length ? Math.round(CUE[i + 1].start * fps) : durationInFrames;
-    return {beat, duration: Math.max(1, to - from)};
+    return {beat, from, duration: Math.max(1, to - from)};
   });
 
   return (
     <AbsoluteFill style={{backgroundColor: STYLE.palette.ground}}>
+      {/* one narration track for the whole film */}
+      <Audio src={staticFile('voiceover.wav')} volume={1} />
+
+      {/* one music bed, ducked under speech */}
+      {music ? (
+        <Audio
+          src={staticFile('music.wav')}
+          volume={(f) =>
+            interpolate(f, [0, fps, fps * 2], [0, music.volume, music.volume], {
+              extrapolateRight: 'clamp',
+            })
+          }
+        />
+      ) : null}
+
       {/* the lead-in: title card while nothing is narrated */}
       <Sequence durationInFrames={leadIn}>
         <AbsoluteFill style={{backgroundColor: STYLE.palette.ground}}>
           <div
+            data-qc="title"
             style={{
               position: 'absolute',
-              left: 80,
-              top: 860,
+              left: 128,
+              top: 560,
               color: STYLE.palette.ink,
               fontFamily: STYLE.type.displayFamily,
               fontWeight: STYLE.type.displayWeight,
-              fontSize: 84,
-              lineHeight: 1.05,
+              fontSize: 72,
+              lineHeight: 1.08,
               letterSpacing: -1,
               whiteSpace: 'pre-line',
             }}
           >
-            {TITLE}
+            {STYLE.title}
           </div>
         </AbsoluteFill>
       </Sequence>
 
-      {beats.map(({beat, duration}) => (
-        <Sequence key={beat.id} from={Math.round(beat.start * fps)} durationInFrames={duration}>
+      {beats.map(({beat, from, duration}) => (
+        <Sequence key={beat.id} from={from} durationInFrames={duration}>
           <Scene beat={beat} />
         </Sequence>
       ))}

@@ -16,7 +16,7 @@ Read this before building any scene. It covers execution — typography, asset a
 
 A reference is a floor, not a mould. What transfers is the principle — why the video feels good, not the order of its effects.
 
-Read eight layers — palette, typography, composition, graphic language, motion, rhythm, sound, attention architecture — with the concrete prompts and the four-step read in `RENDER.md` §4. Two of those layers exist only in time: **motion** (easing, entry duration, text granularity) and **rhythm** (cut distribution, event density). A contact sheet cannot show either; read them from motion strips. Write the result as a ten-line brief in the header of `render.py`, so the read survives to the last scene.
+Read eight layers — palette, typography, composition, graphic language, motion, rhythm, sound, attention architecture — with the concrete prompts and the four-step read in `RENDER.md` §4. Two of those layers exist only in time: **motion** (easing, entry duration, text granularity) and **rhythm** (cut distribution, event density). A contact sheet cannot show either; read them from motion strips. Write the result as a ten-line brief at the top of the build script, so the read survives to the last scene.
 
 Take at least one measured number per layer where a number exists — a size ratio, a cut interval, a stroke weight — because an adjective cannot be built.
 
@@ -217,7 +217,7 @@ Motion must feel like a response to the voice, not random spinning. Visual effec
 
 Text without a supporting word in the voiceover remains legitimate (silent emphasis) — record the reason in the timeline; do not delete it merely because the sync gate cannot verify it.
 
-**Captions are a second, separate layer.** Kinetic typography is the design; burned-in captions are the accessibility and retention baseline every short-form platform expects. If the user wants them, they come from the same `audio/words.json` (`RENDER.md` §3) and never replace the kinetic type — style them small, low, and steady, in the covering safe zone (`§2`); three words per cue is a good default, not a limit. A subtitle file (`output/<slug>.srt`) and the upload copy (`output/publish.txt`) are free from the same data; `publish.txt` is written on every delivery (`SKILL.md`), and the `.srt` is offered whenever the video is going to a platform.
+**Captions are a second, separate layer.** Kinetic typography is the design; burned-in captions are the accessibility and retention baseline every short-form platform expects. If the user wants them, they come from the same `audio/words.json` (`RENDER.md` §3) and never replace the kinetic type — style them small, low, and steady, in the covering safe zone (`§2`); three words per cue is a good default, not a limit. A subtitle file and the upload copy are free from the same data; `publish.txt` is written on every delivery (`SKILL.md`), and the `.srt` is offered whenever the video is going to a platform.
 
 ## 8. Music and audio mixing
 

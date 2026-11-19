@@ -43,14 +43,9 @@ because the router stripped the image. Probe with one real image before relying 
 
 ```bash
 mkdir -p work
-python3 - <<'PY'
-from PIL import Image, ImageDraw
-im = Image.new("RGB", (400, 200), "white"); d = ImageDraw.Draw(im)
-d.rectangle([20, 20, 120, 120], fill=(0, 0, 255))
-d.ellipse([140, 20, 240, 120], fill=(255, 0, 0))
-d.text((30, 150), "X7-KILO", fill="black")
-im.resize((800, 400), Image.LANCZOS).save("work/vision-probe.png")
-PY
+ffmpeg -y -v error -f lavfi -i "color=c=white:s=800x400:d=1" \
+  -vf "drawbox=x=40:y=40:w=200:h=200:color=blue:t=fill,drawbox=x=280:y=40:w=200:h=200:color=red:t=80,drawtext=text=X7-KILO:x=60:y=300:fontsize=48:fontcolor=black" \
+  -frames:v 1 work/vision-probe.png
 ```
 
 Then ask the main session to read `work/vision-probe.png` and report the text and both
@@ -76,7 +71,7 @@ Remotion uses whatever the browser can resolve. Three routes, in order:
    import {staticFile} from 'remotion';
    await loadFont({family: 'Fraunces', url: staticFile('fonts/Fraunces.ttf')});
    ```
-3. **`@font-face` in CSS** pointing at `assets/fonts/*.ttf`.
+3. **`@font-face` in CSS** pointing at `public/fonts/*.ttf`.
 
 A font that is not loaded does not fail — it silently falls back to a system face, and the
 text width changes. Measure after loading, never before:
@@ -89,6 +84,39 @@ const {width} = measureText({text: 'KATA', fontFamily: 'Inter', fontSize: 110, f
 `measureText` throws `measureText() can only be called in a browser` from a Node script.
 Call it inside a component.
 
+**Fonts ready to use.** This is a starting point, not a menu — pick for the topic, and
+download a family that isn't here rather than settling for the first row.
+
+| Mood / style | Families | Notes |
+|---|---|---|
+| Modern, neutral, UI-like | Inter, Montserrat, Manrope, DM Sans, Figtree, Poppins | Safe for narration and body |
+| Playful, doodle, rounded | Baloo 2, Fredoka, Quicksand, Nunito, Gochi Hand | Light topics, children/youth |
+| Handwriting, annotation | Caveat, Patrick Hand, Indie Flower, Kalam | Annotation accents |
+| Elegant / retro script | Pacifico, Dancing Script, Shrikhand | Wordmarks, casual headlines — rarely body |
+| Impact, kinetic type | Bebas Neue, Anton, Archivo Black, Oswald, Archivo, Unbounded, Syne | Big keywords, hooks, statistics |
+| Editorial / firm serif | Fraunces, Instrument Serif, Libre Caslon Text, DM Serif Display, Newsreader, Gloock | Quotes, large figures, serious topics |
+| Technical / data / mono | JetBrains Mono, Space Mono, Space Grotesk, IBM Plex Mono, Sora, Epilogue | Labels, statistics, data |
+| Expressive / display | Bricolage Grotesque, Unbounded, Syne | Titles with personality — usually once |
+
+**Adding a family that is not installed**
+
+```bash
+SLUG=fraunces
+curl -s "https://api.github.com/repos/google/fonts/contents/ofl/$SLUG" \
+  | python3 -c "
+import json, sys, urllib.parse
+fs = [f['name'] for f in json.load(sys.stdin) if f['name'].endswith('.ttf')]
+plain = [f for f in fs if 'italic' not in f.lower()] or fs
+print('https://github.com/google/fonts/raw/main/ofl/$SLUG/' + urllib.parse.quote(plain[0]))
+" > /tmp/font-url.txt
+
+curl -sL -o "public/fonts/Fraunces.ttf" "$(cat /tmp/font-url.txt)"
+```
+
+Under 10 KB means an HTML error page, not a font. Verify it renders before using it: load it
+with `@remotion/fonts`, then `measureText` — a silent fallback to a system face is the usual
+failure, and it changes every measured width.
+
 ## 2. The render pipeline
 
 Every frame is a pure function of the frame number: `useCurrentFrame()` inside a React
@@ -97,7 +125,7 @@ component, rendered by headless Chrome, encoded by ffmpeg.
 ```
 src/index.ts          registerRoot(Root)          <- the entry point, not optional
 src/Root.tsx          <Composition id=... />      <- one per orientation
-src/Timeline.tsx      <Series> of beats           <- reads one absolute-time table
+src/Timeline.tsx      <Sequence> per beat        <- reads one absolute-time table
 src/Scene.tsx         one beat, pure f(frame)
 src/style-brief.ts    STYLE + CUE                 <- the brief and the time table
 public/               voiceover.wav, music.wav, images, fonts
@@ -140,11 +168,19 @@ exists only to sanity-check script length, never to place text.
 
 Two runtimes are installed. Pick by what is available:
 
-**A. whisper.cpp (installed at `_install/whisper.cpp`, model `ggml-small.bin`)**
+**A. whisper.cpp** — fastest on CPU, no Python. Install once, then keep the binary and the
+model outside the project so they are not copied per video:
 
 ```bash
-whisper.cpp/build/bin/whisper-cli \
-  -m whisper.cpp/ggml-small.bin \
+# once per machine
+WHISPER_DIR="$HOME/.local/share/whisper.cpp"
+git clone --depth 1 https://github.com/ggml-org/whisper.cpp "$WHISPER_DIR"
+cmake -S "$WHISPER_DIR" -B "$WHISPER_DIR/build" && cmake --build "$WHISPER_DIR/build" -j
+"$WHISPER_DIR"/models/download-ggml-model.sh small
+
+# per video
+"$WHISPER_DIR/build/bin/whisper-cli" \
+  -m "$WHISPER_DIR/models/ggml-small.bin" \
   -f work/voiceover-16k.wav -l id -oj -of work/words
 ```
 
@@ -337,8 +373,8 @@ still has to be enforced:
   video files that are already H.264, `OffthreadVideo` is the fastest and the most stable;
   measured 450 frames of a 1080×1920 plate in 46 s at concurrency 6.
 - **One absolute-time table.** `CUE` in `src/style-brief.ts` holds every beat start in video
-  seconds. `Timeline.tsx` derives `<Series.Sequence>` durations from it; a scene never keeps
-  its own offset. Scene boundaries come from ASR sentence boundaries, not typed twice.
+  seconds. `Timeline.tsx` derives each `<Sequence>` duration from it; a scene never keeps its own
+  offset. Scene boundaries come from ASR sentence boundaries, not typed twice.
 - **Text must be a DOM node.** The sync gate reads `getBoundingClientRect()` — text drawn
   into a canvas or an SVG path is invisible to it.
 
@@ -346,7 +382,7 @@ still has to be enforced:
 `spring({damping: 200})` reads as a snap; longer than 20 frames reads as a drift.
 
 **Sub-pixel drift.** CSS animates transform values with sub-pixel precision, so a 0.4 px
-per-frame drift does change pixels — unlike PIL. Keep drift in `translateX`/`translateY`,
+per-frame drift does change pixels. Keep drift in `translateX`/`translateY`,
 not `left`/`top`, so the compositor handles it.
 
 **Motion that survives the encoder.** Every second needs at least one element whose
@@ -385,16 +421,17 @@ echo "orient=$ORIENT voiceover=$VO_DUR total=$DUR s frames=$FRAMES cap=$MAX_DUR"
 Put `DUR` and `FRAMES` into `src/Root.tsx` as `durationInFrames`.
 
 **The cap is a ceiling, not a target.** Derive the number from the last beat, never from the
-orientation. Measured failure on this scaffold: a 1800-frame composition against a CUE ending
-at 7 s held the closing beat for 53 s, so 87% of the video was one still frame and the contact
-sheet showed nine near-identical thumbnails.
+orientation. `cue.ts` already does this: `DURATION_SECONDS` is the last word, plus `vo_delay`,
+plus a 1.5 s tail. `Root.tsx` multiplies it by 30.
 
-```python
-import json
-d = json.load(open('audio/words.json'))
-last_beat = max(s['end'] for s in d['segments'])
-dur = int(last_beat + d['vo_delay'] + 1.5) + 1   # round up, 1.5 s tail
-print(f"DUR={dur} FRAMES={dur * 30}")
+Measured failure on this scaffold: a 1800-frame composition against a CUE ending at 7 s held
+the closing beat for 53 s, so 87% of the video was one still frame and the contact sheet showed
+nine near-identical thumbnails. The shipped scaffold now derives 10 s from a 7.5 s script, and
+`qc/make-player-host.mjs` reads the same number, so the host and the composition cannot drift
+apart in silence.
+
+```bash
+node -e "const {DURATION_SECONDS}=require('./src/cue'); console.log(DURATION_SECONDS*30)"
 ```
 
 **Audio is placed in the composition, then normalised after export.** Remotion mixes through
@@ -420,9 +457,9 @@ Ducking music under speech is done in the mix, not in ffmpeg — set `volume` on
   interpolate(f, [0, 30, 300, 330], [0, 0.25, 0.25, 0], {extrapolateRight: 'clamp'})} />
 ```
 
-The three-step ffmpeg chain in the PIL skill (`loudnorm` into its own file, then `apad`,
-then `amix`) exists because of a filter-order bug there. Remotion does the mixing, so the
-only post-pass needed is the loudness line above — do not stack both.
+The three-step `loudnorm` → `apad` → `amix` chain belongs to a drawing pipeline that has no
+mixer of its own. Remotion mixes, so the only post-pass needed is the loudness line above.
+Do not stack both.
 
 Output is H.264 + AAC 48 kHz stereo automatically. `-ac 2` is not needed.
 
@@ -442,8 +479,8 @@ planned. Report the real numbers. If they miss, fix and re-export — never roun
 
 ### Sync gate
 
-Every text must be **proven** to appear at its word time and not before. In PIL that means
-wrapping the draw call; here the text is DOM, so read it back.
+Every text must be **proven** to appear at its word time and not before. The text is DOM, so
+read it back instead of trusting the timeline.
 
 Two routes were measured:
 
@@ -479,8 +516,8 @@ Text changes per frame and boxes move, so this is a real gate, not a stub.
 
 ### Geometry gate
 
-Run in the same headless page. The rules are the same numbers as the PIL skill; only the
-way you get the box changes.
+Run in the same headless page. The thresholds are the numbers in `GUIDE.md` §2; only the way
+you get the box changes.
 
 ```js
 await page.evaluate(async (seconds) => {
@@ -552,6 +589,14 @@ graphics, and `n=-60dB` is not a legal argument — `n` is a linear 0–1 ratio.
 A deliberate hold is legitimate when it is written in the timeline. Undocumented freezes
 are defects.
 
+### Repetition gate
+
+Two beats that put the same role in the same box at the same size are a template, not a
+motif. Compare the `data-qc` boxes between consecutive beats: same role, same size, same
+position means the layout did not change. A deliberate pair is legitimate — a before/after,
+a repeated motif. Three in a row is the signature of a template. When it is deliberate, write
+the reason in `CUE` beside the beats so the next revision does not "fix" it.
+
 ### Contact sheet
 
 ```bash
@@ -586,7 +631,7 @@ Everything else is reported with its number and a decision.
 
 ## 8. Self-made background music
 
-Only when the user supplies none. Generate a simple ambient pad with ffmpeg or numpy —
+Only when the user supplies none. Generate a simple ambient pad with ffmpeg —
 several chord tones layered at low volume, plus a light pulse. Export as 48 kHz WAV into
 `public/music.wav` and reference it with `staticFile`.
 
@@ -620,7 +665,8 @@ ffmpeg -f lavfi -i "anoisesrc=d=0.4:c=pink:a=0.5" \
 - **Loudness is not normalised.** Remotion mixes; it does not master. One `loudnorm` pass
   after export, with `-c:v copy`.
 - **`npx remotion still` in a loop** for a sync gate costs 6.4 s per sample. Use the Player.
-- **`<Series.Sequence>` stacks children back to back and ignores a start time.** A 1 s
+- **`<Series>` is the wrong tool here: it stacks children back to back, ignoring a start
+  time.** A 1 s
   lead-in needs its own `<Sequence>`, or every beat fires one second early. Measured
   symptom: a reveal scheduled at 4.72 s appeared at 3.72 s. Use `<Sequence from=...>`.
 - **`useCurrentFrame()` inside a `<Sequence>` is already sequence-local.** Subtracting
@@ -635,7 +681,7 @@ ffmpeg -f lavfi -i "anoisesrc=d=0.4:c=pink:a=0.5" \
   box and place the text inside it, then check on the contact sheet.
 - **`opacity: 0` still has `textContent`.** A sync gate that only reads text finds every
   future word on screen at frame 0. Walk the parent chain and multiply computed `opacity`,
-  and require a non-zero box — the DOM equivalent of the PIL gate's alpha filter.
+  and require a non-zero box, or an invisible element still counts as on screen.
 - **An empty lead-in reads as a blank opening.** Measured on the contact sheet: the first
   two thumbnails were empty canvas. Put the title card in the lead-in `<Sequence>`.
 

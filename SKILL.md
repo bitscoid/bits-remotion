@@ -105,12 +105,15 @@ tiga-mitos-otak/
 ├── src/
 │   ├── index.ts            registerRoot(Root) — the entry point
 │   ├── Root.tsx            one <Composition> per orientation
-│   ├── Timeline.tsx        <Series> of beats, reads CUE
+│   ├── Timeline.tsx        <Sequence> per beat + the audio tracks
 │   ├── Scene.tsx           one beat, pure f(frame)
 │   └── style-brief.ts      STYLE + CUE — the brief and the time table
 ├── qc/
-│   ├── make-player-host.mjs  writes work/player-host.html
-│   └── sync-gate.mjs         proves text appears after its word
+│   ├── player-entry.tsx      the in-page harness
+│   ├── make-player-host.mjs  bundles the harness into work/
+│   ├── sync-gate.mjs         proves text appears after its word
+│   ├── geometry-gate.mjs     safe area, cap height, collision
+│   └── sync-cases.json       the texts the gate checks
 ├── audio/
 │   └── words.json          word-level timing; DURABLE, never deleted
 ├── assets/                 optional; style reference and raw downloads
@@ -141,7 +144,7 @@ Never create empty directories. No images means no `assets/`. No music means no 
 
 | Layer | Form | Example |
 |---|---|---|
-| Directories | one lowercase English word | `audio`, `assets`, `output`, `work`, `frames`, `check` |
+| Directories | one lowercase English word | `audio`, `assets`, `public`, `out`, `work`, `qc` |
 | Data files | English kebab-case | `script.txt`, `voiceover.wav`, `words.json`, `publish.txt` |
 | Build script | `PascalCase.tsx` components, one entry | `Root.tsx`, `Timeline.tsx`, `Scene.tsx` |
 | Project folder | topic slug, kebab-case | `tiga-mitos-otak` |
@@ -332,7 +335,7 @@ Pilihannya:
 
 ### Stage 4 — Analyse assets and control duration
 
-1. Inventory every file and understand each asset's role against the script. Measure user image dimensions with PIL before the composition references them: an image far smaller than the output resolution breaks when enlarged — tell the user, or design the composition so it still works (e.g. small element instead of full-bleed).
+1. Inventory every file and understand each asset's role against the script. Measure user image dimensions with `ffprobe` or PIL before the composition references them: an image far smaller than the output resolution breaks when enlarged — tell the user, or design the composition so it still works (e.g. small element instead of full-bleed).
 
    ```
    Gambar [nama] berukuran [W]×[H], sedangkan video [W]×[H]. Kalau dipakai
@@ -420,7 +423,7 @@ Read both reference documents before building anything:
 - `references/GUIDE.md` — creative direction, typography, asset animation, transitions, **translating ideas into visuals (§5), cross-scene variation (§6)**, audio mixing.
 - `references/RENDER.md` — environment check, fonts, the Remotion pipeline, ffmpeg commands, verification.
 
-**Write QC checks yourself** when you need them. The rules are already complete in prose: safe area, two-tier cap height, WCAG contrast, text collision (coverage), and repetition patterns — all in `GUIDE.md` §2 and `RENDER.md` §7. The scaffold ships the sync gate and the geometry read-back; extend them against your own `data-qc` roles.
+**Write QC checks yourself** when you need them. The rules are already complete in prose: safe area, two-tier cap height, WCAG contrast, text collision (coverage), and repetition patterns — all in `GUIDE.md` §2 and `RENDER.md` §7. The scaffold ships both gates (`qc/sync-gate.mjs`, `qc/geometry-gate.mjs`); extend them against your own `data-qc` roles.
 
 Two checks are not optional because they protect the file itself, and both catch failures that look fine on screen:
 - **frame count equals `DUR × 30`** in the exported file (`RENDER.md` §7) — a truncated render passes every visual check;

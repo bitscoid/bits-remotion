@@ -1,15 +1,13 @@
 import {
   AbsoluteFill,
-  Audio,
   Easing,
   interpolate,
   spring,
-  staticFile,
   useCurrentFrame,
   useVideoConfig,
 } from 'remotion';
 import React from 'react';
-import type {Beat} from './style-brief';
+import type {Beat} from './cue';
 import {STYLE} from './style-brief';
 
 /**
@@ -65,8 +63,6 @@ export const Scene: React.FC<{beat: Beat}> = ({beat}) => {
 
   return (
     <AbsoluteFill style={{backgroundColor: STYLE.palette.ground}}>
-      <Audio src={staticFile('voiceover.wav')} volume={1} />
-
       {/* the signature device: the word sits on the accent block */}
       <div
         style={{
@@ -110,7 +106,7 @@ export const Scene: React.FC<{beat: Beat}> = ({beat}) => {
           color: STYLE.palette.ink,
           fontFamily: STYLE.type.metaFamily,
           fontWeight: STYLE.type.metaWeight,
-          fontSize: 28,
+          fontSize: STYLE.type.metaSizePx,
           letterSpacing: STYLE.type.capTrackingPx,
           textTransform: 'uppercase',
           opacity: interpolate(frame, [0, 8], [0, 1], {extrapolateRight: 'clamp'}),

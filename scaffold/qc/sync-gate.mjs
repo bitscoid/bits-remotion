@@ -1,11 +1,16 @@
 /**
  * The sync gate (RENDER.md §7).
  *
- * Proves, for each case in qc/sync-cases.json, that a text is on screen at its
- * word time and is not on screen before it. The asymmetry is deliberate:
- * 0.1 s late is invisible, appearing early is a visible defect.
+ * Proves, for each keyword the film draws, that it is on screen at its word
+ * time and is not on screen before it. The asymmetry is deliberate: 0.1 s late
+ * is invisible, appearing early is a visible defect.
  *
- * Measured on this machine: 251 ms per sample including seek + DOM query.
+ * The cases come from the same `cue.ts` the composition uses, so the gate can
+ * never check times the video does not actually use. Measured failure of a
+ * hand-written list: it kept 1.55 s after the CUE moved to 1.65 s and reported
+ * three false misses.
+ *
+ * Measured on this machine: 122–251 ms per sample including seek + DOM query.
  * `remotion still` per sample costs 6.4 s warm, 19.4 s cold — too slow.
  *
  * Run `node qc/make-player-host.mjs` first; it writes work/player-host.html.
@@ -21,10 +26,6 @@ const CHROME =
   process.env.REMOTION_CHROME ??
   path.join(ROOT, 'node_modules', '.remotion', 'chrome-headless-shell', 'linux64',
     'chrome-headless-shell-linux64', 'chrome-headless-shell');
-
-const words = JSON.parse(fs.readFileSync(path.join(ROOT, 'audio', 'words.json'), 'utf8'));
-const VO_DELAY = words.vo_delay;
-const checks = JSON.parse(fs.readFileSync(path.join(ROOT, 'qc', 'sync-cases.json'), 'utf8'));
 
 const host = path.join(ROOT, 'work', 'player-host.html');
 if (!fs.existsSync(host)) {
@@ -42,6 +43,9 @@ await page.setViewport({width: 1080, height: 1920});
 await page.goto(`file://${host}`, {waitUntil: 'networkidle0'});
 await page.waitForFunction('window.__ready === true', {timeout: 30000});
 
+/** The cases the composition itself uses, read from the bundled page. */
+const checks = await page.evaluate(() => window.__syncCases);
+
 /** Every text actually VISIBLE at a video second, after the Player has settled. */
 const textsAt = (videoSeconds) =>
   page.evaluate(async (s) => {
@@ -51,8 +55,7 @@ const textsAt = (videoSeconds) =>
       const text = (el.textContent ?? '').trim();
       if (!text) return;
       // An element with opacity 0 still has textContent. Visibility is the
-      // rendered state, and that is what the viewer sees — same rule as the
-      // alpha filter in the PIL gate.
+      // rendered state, and that is what the viewer sees.
       let opacity = 1;
       let node = el;
       while (node && node !== document.body) {
@@ -68,18 +71,17 @@ const textsAt = (videoSeconds) =>
 const findings = [];
 const started = Date.now();
 
-for (const {text, t_vo} of checks) {
-  const t = VO_DELAY + t_vo;
-  const late = await textsAt(t + 0.1);
-  const early = await textsAt(t - 0.15);
-  if (!late.includes(text)) findings.push(`missing or late: "${text}" @ ${t.toFixed(2)}s`);
-  if (early.includes(text)) findings.push(`appears too early: "${text}" @ ${t.toFixed(2)}s`);
+for (const {text, wordAt} of checks) {
+  const late = await textsAt(wordAt + 0.1);
+  const early = await textsAt(wordAt - 0.15);
+  if (!late.includes(text)) findings.push(`missing or late: "${text}" @ ${wordAt.toFixed(2)}s`);
+  if (early.includes(text)) findings.push(`appears too early: "${text}" @ ${wordAt.toFixed(2)}s`);
 }
 
 const perSample = (Date.now() - started) / (checks.length * 2);
 await browser.close();
 
-console.log(`${checks.length} texts, ${perSample.toFixed(0)} ms/sample`);
+console.log(`${checks.length} keywords, ${perSample.toFixed(0)} ms/sample`);
 if (findings.length) {
   console.log(findings.join('\n'));
   process.exitCode = 1;

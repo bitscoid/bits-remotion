@@ -1,16 +1,17 @@
 /**
- * Builds the page the sync gate drives.
+ * Builds the two pages the sync gate and the geometry gate drive.
  *
- * Why a bundle and not a module import: the gate opens the host over file://,
+ * Why a bundle and not a module import: the gates open the host over file://,
  * and Chrome will not resolve a bare `import {Timeline} from '../src/Timeline'`
- * (a .tsx path) from a file:// document. esbuild resolves the whole graph —
- * TSX, React, @remotion/player — into one script.
+ * (a .tsx path) from a file:// document. esbuild resolves the whole graph.
  *
- * Output:
- *   work/player.js          the bundle
- *   work/player-host.html   the page, with size read from the composition
+ * Sizes come from the composition, read from env or passed on the command line:
  *
- * Measured: bundle ~1.1 MB, 0.3 s. The gate then costs 251 ms per sample.
+ *   node qc/make-player-host.mjs --frames=270 --width=1080 --height=1920
+ *
+ * Defaults match the scaffold's src/Root.tsx. If you change one, change both —
+ * a host that disagrees with the composition seeks to frames that do not exist
+ * and every sample reads as "text missing".
  */
 import {build} from 'esbuild';
 import fs from 'node:fs';
@@ -20,9 +21,42 @@ const ROOT = process.cwd();
 const OUT = path.join(ROOT, 'work');
 fs.mkdirSync(OUT, {recursive: true});
 
-const width = Number(process.env.QC_WIDTH ?? 1080);
-const height = Number(process.env.QC_HEIGHT ?? 1920);
-const frames = Number(process.env.QC_FRAMES ?? 1800);
+const arg = (name, fallback) => {
+  const hit = process.argv.find((a) => a.startsWith(`--${name}=`));
+  if (hit) return Number(hit.split('=')[1]);
+  const env = process.env[`QC_${name.toUpperCase()}`];
+  if (env) return Number(env);
+  return fallback;
+};
+
+/**
+ * Read the frame count from the composition itself.
+ *
+ * `src/Root.tsx` derives durationInFrames from cue.ts. Hardcoding a second copy
+ * here means the host and the composition drift, and every sample past the real
+ * end reads as "text missing". Measured: a host at 270 frames against a 330-frame
+ * composition silently truncated the film at the last gate run.
+ */
+async function framesFromComposition() {
+  const mod = await import('esbuild');
+  const fsMod = await import('node:fs');
+  const out = path.join(OUT, 'cue.mjs');
+  mod.buildSync({
+    entryPoints: [path.join(ROOT, 'src', 'cue.ts')],
+    bundle: true,
+    outfile: out,
+    format: 'esm',
+    platform: 'node',
+    logLevel: 'error',
+  });
+  const {DURATION_SECONDS} = await import(`${out}?t=${Date.now()}`);
+  fsMod.unlinkSync(out);
+  return DURATION_SECONDS * 30;
+}
+
+const width = arg('width', 1080);
+const height = arg('height', 1920);
+const frames = arg('frames', null) ?? (await framesFromComposition());
 
 await build({
   entryPoints: [path.join(ROOT, 'qc', 'player-entry.tsx')],
@@ -47,4 +81,5 @@ const host = `<!doctype html>
 </body></html>`;
 
 fs.writeFileSync(path.join(OUT, 'player-host.html'), host);
-console.log('wrote', path.join(OUT, 'player-host.html'), `${width}x${height}`, `${frames} frames`);
+console.log(`wrote work/player-host.html  ${width}x${height}  ${frames} frames`);
+console.log('frames come from src/cue.ts — pass --frames= to override');

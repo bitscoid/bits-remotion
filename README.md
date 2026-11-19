@@ -62,7 +62,7 @@ This skill is **rules, not a template.**
 
 | Layer | Divided how |
 |---|---|
-| 🎯 **Accuracy** | Measurable and reported with numbers — timing follows the spoken word, text stays in the safe area, cap height meets threshold, contrast meets WCAG, no dead air inside the narration, mix loudness in band, frame count is exact. Two are hard requirements: frame contiguity before encoding, and the finished loudness/tail floor |
+| 🎯 **Accuracy** | Measurable and reported with numbers — timing follows the spoken word, text stays in the safe area, cap height meets threshold, contrast meets WCAG, no dead air inside the narration, mix loudness in band, frame count is exact. Two are hard requirements: frame count equals duration × 30 in the exported file, and the finished loudness/tail floor |
 | 🎨 **Taste** | Entirely yours — palette, scene count, transitions, typeface, mood, motion rhythm |
 
 The test applied to every rule before it entered these documents:
@@ -92,8 +92,8 @@ Word-count estimation is the documented fallback, clearly labelled as approximat
 <summary><b>📐 Typography geometry</b></summary>
 
 - Safe area: **4%** from every edge — and for portrait short-form, **10% from the bottom / 12% from the right** as the floor, with anything that must be read kept at **15% from the bottom** because the platform UI sits over that band
-- **Cap height**, not font size: **4%** of the short side for primary text, **2.5%** for supporting text (1080p landscape → 43 px / 27 px). Measured once per face (`font.getbbox("H")`), never from a string's bbox
-- Centring is measured from the glyph box, never delegated blindly to `anchor="mm"`
+- **Cap height**, not font size: **4%** of the short side for primary text, **2.5%** for supporting text (1080p landscape → 43 px / 27 px). Measured once per face with `measureText`, never from a string's box
+- Centring is measured from the rendered box, never delegated to `text-align` alone
 - Text collision checked by **coverage of the smaller box (< 0.02)**, not IoU — IoU 0.16 lets a 20% line overlap pass
 
 </details>
@@ -114,11 +114,11 @@ Measured with the WCAG formula: a light salmon `(238,150,130)` on cream `(245,24
 <summary><b>🔊 Audio</b></summary>
 
 - Voiceover normalised to −16 LUFS, true peak −1.5 dB, in its own file
-- Music **looped to the video length** (`-stream_loop -1`), ducked under speech, faded to a floor — never to absolute zero
+- Music **ducked under speech** with a fading `volume` curve, faded to a floor — never to absolute zero
 - Audio gate is **windowed**: no dead air inside the speech region, and with music the tail must still carry sound
 - Finished mix measured: **I ∈ [−17, −14] LUFS**, true peak ≤ −1 dBTP
 
-Measured traps that produced these rules: `loudnorm` inline with `apad` drops the tail to **−91 dB**; `afade=t=out` ending on the last frame leaves the final 0.8 s at **−61.7 dB**; a 10 s music bed on a 28 s video without looping leaves **18 s of silence**.
+Measured trap that produced the loudness rule: Remotion mixes but does not master — a sine at 0.8 volume exported at **−34.4 LUFS**, and one `loudnorm` pass on the export brought it to **−15.9**. The video is never re-encoded (`-c:v copy`).
 
 </details>
 
@@ -127,7 +127,7 @@ Measured traps that produced these rules: `loudnorm` inline with `apad` drops th
 
 Every second of video keeps at least one element moving. Verified with `freezedetect=n=0` — never the default `n=0.001` (about −60 dB), which false-positives on flat graphics. The 1 s lead-in before speech is exempt.
 
-Frame contiguity is asserted before encoding: a missing PNG mid-sequence silently truncates the MP4 (`%05d` input stops at the gap).
+The exported frame count is asserted: it must equal duration × 30. A truncated render passes every visual check and only the metadata shows it.
 
 The lower bound is the encoder, not taste: motion under ~10 px can be quantised away at CRF 18+, leaving identical frames.
 
@@ -151,30 +151,39 @@ Each video becomes a self-contained folder:
 ```
 tiga-mitos-otak/
 ├── script.txt              voiceover script, clean text, no labels
+├── package.json            Remotion + React toolchain
+├── tsconfig.json           required by Remotion
 ├── src/
 │   ├── index.ts            registerRoot(Root) — the entry point
 │   ├── Root.tsx            one <Composition> per orientation
-│   ├── Timeline.tsx        <Series> of beats, reads CUE
+│   ├── Timeline.tsx        <Sequence> per beat + the audio tracks
 │   ├── Scene.tsx           one beat, pure f(frame)
 │   └── style-brief.ts      STYLE + CUE
+├── qc/
+│   ├── player-entry.tsx    the in-page harness
+│   ├── make-player-host.mjs
+│   ├── sync-gate.mjs       proves text appears after its word
+│   ├── geometry-gate.mjs   safe area, cap height, collision
+│   └── sync-cases.json
 ├── audio/
-│   ├── voiceover.wav       timing source, 48 kHz mono
-│   ├── music.wav           optional, 48 kHz
 │   └── words.json          word-level timing; DURABLE, never deleted
-├── assets/                 optional; created only when the user supplies assets
-│   ├── image-01.png        first supporting image
-│   ├── image-02.png        second supporting image
+├── assets/
 │   └── reference.mp4       style reference video
-├── output/
+├── public/                 everything the composition reads by staticFile()
+│   ├── voiceover.wav       narration, 48 kHz mono — the timing source
+│   ├── music.wav           optional, 48 kHz
+│   ├── image-01.png        first supporting image
+│   └── fonts/              only for a family that is not on Google Fonts
+├── out/
 │   ├── tiga-mitos-otak.mp4 deliverable; name equals folder name
 │   ├── tiga-mitos-otak.srt subtitle track, optional
-│   └── publish.txt         caption, description, hashtags for upload
+│   └── publish.txt         caption, description, hashtags
 └── work/                   every intermediate file; safe to delete entirely
-    ├── frames/
+    ├── render-raw.mp4      the render before loudness normalisation
+    ├── player-host.html    the page the gates drive
     ├── check/
-    ├── voiceover-16k.wav   16 kHz mono, for speech recognition
-    ├── voiceover-norm.wav  loudness-normalised voiceover
-    └── music-norm.wav      looped + ducked-ready music
+    ├── ref/                contact sheet + motion strips
+    └── voiceover-16k.wav   16 kHz mono, for speech recognition
 ```
 
 `audio/words.json` sits outside `work/` deliberately: it is the only derived file a revision cannot faithfully recreate (a fresh ASR pass returns ~±0.1 s different timestamps and desyncs a re-render). Everything else in `work/` rebuilds in one command, so `rm -rf work` loses nothing that matters.
@@ -194,7 +203,7 @@ tiga-mitos-otak/
 | `node` >= 22 + `npm` | runs the Remotion toolchain |
 | `remotion` 4.0.545 + React 18 | the renderer (installed by `npm install`) |
 | Remotion browser (102 MB) | `npx remotion browser ensure`, once |
-| `faster-whisper` | word-level timing (optional, degrades to estimate) |
+| `whisper.cpp` **or** `faster-whisper` | word-level timing (optional, degrades to estimate) |
 | `GEMINI_API_KEY` | optional TTS when you have no recording (Interactions endpoint) |
 | `yt-dlp` | optional, downloading style references |
 
@@ -202,7 +211,7 @@ Verified on ffmpeg 7.1. Every ffmpeg behaviour cited in the docs was measured on
 
 Frames are React components rendered by headless Chrome. Text is a DOM node, which is what lets the sync gate read it back with `getBoundingClientRect()`.
 
-Disk and time scale with the cap: a 300 s landscape video is **9000 PNG frames** before encoding. Render with the resume worker and expect the encode to take minutes, not seconds.
+Measured on this machine: 60 s portrait at concurrency 8 takes **42 s**; 300 s landscape takes **177 s**. Concurrency is the lever — 1→127 s, 8→42 s on 1800 frames.
 
 ---
 
@@ -220,7 +229,7 @@ The measured numbers live with the rule they protect; the creative freedoms live
 
 ## 🎨 Fonts
 
-The catalogue ships **38 families across 9 registers** as a starting point, never a menu. If the topic needs typography that isn't there, the skill downloads it:
+The catalogue in `references/RENDER.md` §1 lists 8 registers as a starting point, never a menu. A family that isn't there is downloaded, not substituted:
 
 ```bash
 curl -sL -o /tmp/font.ttf \
