@@ -59,11 +59,11 @@ Rules:
   | primary / keywords | ≥ 4% | 77 px | 43 px |
   | supporting / labels / chips | ≥ 2.5% | 48 px | 27 px |
 
-  Font size to reach that height depends on the face: measured on DejaVu Sans Bold, capitals are **0.73× the size**. So on a 1080 short side, primary needs **size ≈ 60** and supporting **≈ 37**; on 1920, **≈ 105** and **≈ 66**. A condensed or display face has a different ratio — measure `font.getbbox("H")` for the font you chose and solve for the size; never assume 0.75 or copy a number from a table for a different face.
+  Font size to reach that height depends on the face: measured on DejaVu Sans Bold, capitals are **0.73× the size**. So on a 1080 short side, primary needs **size ≈ 60** and supporting **≈ 37**; on 1920, **≈ 105** and **≈ 66**. A condensed or display face has a different ratio — measure the capital `H` once for the face you chose with your engine's measuring tool (PIL: `font.getbbox("H")`; DOM: render one probe element and read its box) and solve for the size; never assume 0.75 or copy a number from a table for a different face.
 
   Writing only the 1920 figures is what makes a landscape video ship with text half the intended size. Measure the result; don't estimate.
 
-  Measure the **cap height**, not the full string box. Mixed case adds descenders, and a lowercase-only line returns x-height — about 0.58× the size on DejaVu Sans Bold, against 0.73× for capitals — so a gate fed `textbbox` height would demand type roughly 25% larger than this table intends, and would fail a correctly sized word like "sun". Measure `font.getbbox("H")` once per face.
+  Measure the **cap height**, not the full string box. Mixed case adds descenders, and a lowercase-only line returns x-height — about 0.58× the size on DejaVu Sans Bold, against 0.73× for capitals — so a gate fed the full string-box height would demand type roughly 25% larger than this table intends, and would fail a correctly sized word like "sun". Measure the `H` glyph once per face.
 
   If a supporting line will not fit at 2.5% alongside other elements, cut words from that line — never lower the threshold.
 - Check text-against-background contrast in code, never by judging colour names. Thresholds are measurable and tied to the text's **role**, not its pixel size:
@@ -108,7 +108,7 @@ def fit_accent(rgb, bg, target):
 ```
 
 Run it once per role (primary 3.0, supporting 4.5) and use the result everywhere the accent carries text. On a dark background the answer is nearly always **lighter**, not darker; if neither direction reaches the target, the hue or saturation has to change — returning a colour that fails the ratio is exactly the bug this function exists to prevent.
-- **Centring is measured, not delegated to `anchor`.** `anchor="mm"` centres the font's em box, not the glyph shape — numerals, capital titles, and text with descenders visibly drift inside a shape. For text sitting inside an object (a numeral in a circle, a label on a card, text in a colour block), offset by the glyph bbox:
+- **Centring is measured, not delegated to a centre anchor.** A centre anchor (PIL `anchor="mm"`, CSS `text-align`/`text-baseline` shortcuts) centres the font's em box, not the glyph shape — numerals, capital titles, and text with descenders visibly drift inside a shape. For text sitting inside an object (a numeral in a circle, a label on a card, text in a colour block), offset by the glyph box. The PIL form:
 
 ```python
 bb = d.textbbox((px, py), s, font=f, anchor="mm")
@@ -117,8 +117,9 @@ dy = (bb[1] + bb[3]) / 2 - py
 d.text((px - dx, py - dy), s, font=f, anchor="mm", fill=fill)
 ```
 
+  In the DOM the same rule reads the rendered element's box (`getBoundingClientRect`) after the real font has loaded, and offsets by the difference between the box centre and the anchor point.
   Measured: offset 10 px → 0.5 px. If a camera transform is active (scale/shift), divide `dx` and `dy` by the scale before applying. If the text uses per-letter `spacing`, `anchor` no longer applies — measure total width and centre it manually; never mix the two methods.
-- **Text stacks are measured, not assumed.** When several lines stack vertically (label, title, subtitle), compute each line's top/bottom from `textbbox` and confirm there is no intersection. Reading order must match narrative order, and the last line must not crowd the object below it — leave at least ~0.8× line height.
+- **Text stacks are measured, not assumed.** When several lines stack vertically (label, title, subtitle), compute each line's top/bottom from measured glyph boxes (`textbbox` in PIL, `getBoundingClientRect` in the DOM) and confirm there is no intersection. Reading order must match narrative order, and the last line must not crowd the object below it — leave at least ~0.8× line height.
 - **Chips and badges are centred by construction, not by eye.** Measure the content first (icon width + gap + text width at the real font), then build the box around the group: `left = centre − content/2`, box = `[left − pad, y − h/2, left + content + pad, y + h/2]`. Placing the box and the text independently measured tens of pixels off-centre and a badge that swallowed the icon. And when a diagram line must pass near text, the text moves — a stroke drawn through a label band (a cable crossing a centred caption) measured twice before this rule existed.
 
 ## 3. Animating assets
