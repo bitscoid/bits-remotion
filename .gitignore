@@ -1,0 +1,10 @@
+node_modules/
+out/
+work/
+public/voiceover.wav
+public/music.wav
+audio/
+assets/
+*.mp4
+*.srt
+.DS_Store

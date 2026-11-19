@@ -1,0 +1,676 @@
+# Render and Verification — Remotion
+
+Read this before building and rendering. All commands are examples — adapt filenames to the assets you actually have. Never run a command that depends on a tool you have not checked exists.
+
+Everything here was measured on Node v26.11.1, Remotion 4.0.545, ffmpeg 7.1.5, 34 vCPU, 24 GB RAM.
+
+## Contents
+1. Environment check
+2. The render pipeline
+3. Measuring and analysing the voiceover
+4. Analysing a reference video
+5. Building frames deterministically
+6. Audio mixing and export
+7. Verifying the exported file (sync, geometry, audio, loudness)
+8. Self-made background music
+9. Common traps
+10. Cleanup after delivery
+
+## 1. Environment check
+
+Run this first and plan around the result:
+
+```bash
+node -v; npm -v                      # need >= 22
+ffmpeg -version | head -1; ffprobe -version | head -1
+npx remotion --version
+ls node_modules/.remotion/chrome-headless-shell/linux64/chrome-headless-shell-linux64/chrome-headless-shell
+python3 -c "import faster_whisper; print('word-level ASR: available')" 2>/dev/null || echo "ASR: unavailable"
+fc-list | head -20                   # available fonts
+[ -n "$GEMINI_API_KEY" ] && echo "GEMINI_API_KEY: present" || echo "GEMINI_API_KEY: absent"
+which curl yt-dlp
+```
+
+The browser is installed once with `npx remotion browser ensure`; it lives in
+`node_modules/.remotion/` and is 102 MB. If it is missing, every render fails at the
+first frame with a protocol error, so check it before anything else.
+
+### Vision capability (measured, never assumed)
+
+Stages 4 and 7 need the model to open an image. Provider metadata is not evidence: on one
+measured gateway, 15 of 72 models advertising `vision: true` returned an empty `content`
+because the router stripped the image. Probe with one real image before relying on it:
+
+```bash
+mkdir -p work
+python3 - <<'PY'
+from PIL import Image, ImageDraw
+im = Image.new("RGB", (400, 200), "white"); d = ImageDraw.Draw(im)
+d.rectangle([20, 20, 120, 120], fill=(0, 0, 255))
+d.ellipse([140, 20, 240, 120], fill=(255, 0, 0))
+d.text((30, 150), "X7-KILO", fill="black")
+im.resize((800, 400), Image.LANCZOS).save("work/vision-probe.png")
+PY
+```
+
+Then ask the main session to read `work/vision-probe.png` and report the text and both
+shapes. Pass = it names `X7-KILO`, a blue square, and a red circle. Fail = empty reply,
+a refusal, or a placeholder such as `[image omitted: ...]`.
+
+- **Pass** → keep every image call in the main session. No subagent.
+- **Fail** → delegate the image call to the `vision` subagent, once.
+- **Both fail** → say so plainly and ask the user for a text description.
+
+Batch several images into one delegated call. Timing, scene code, rendering, and every QC
+number stay in the main session.
+
+### Fonts
+
+Remotion uses whatever the browser can resolve. Three routes, in order:
+
+1. **`@remotion/google-fonts`** — installed. `import {loadFont} from '@remotion/google-fonts/Inter'`.
+   It fetches at bundle time, so the render has no network dependency.
+2. **`@remotion/fonts`** — `loadFont()` from a local file in `public/`:
+   ```ts
+   import {loadFont} from '@remotion/fonts';
+   import {staticFile} from 'remotion';
+   await loadFont({family: 'Fraunces', url: staticFile('fonts/Fraunces.ttf')});
+   ```
+3. **`@font-face` in CSS** pointing at `assets/fonts/*.ttf`.
+
+A font that is not loaded does not fail — it silently falls back to a system face, and the
+text width changes. Measure after loading, never before:
+
+```ts
+import {measureText} from '@remotion/layout-utils'; // browser only, not in Node
+const {width} = measureText({text: 'KATA', fontFamily: 'Inter', fontSize: 110, fontWeight: '900'});
+```
+
+`measureText` throws `measureText() can only be called in a browser` from a Node script.
+Call it inside a component.
+
+## 2. The render pipeline
+
+Every frame is a pure function of the frame number: `useCurrentFrame()` inside a React
+component, rendered by headless Chrome, encoded by ffmpeg.
+
+```
+src/index.ts          registerRoot(Root)          <- the entry point, not optional
+src/Root.tsx          <Composition id=... />      <- one per orientation
+src/Timeline.tsx      <Series> of beats           <- reads one absolute-time table
+src/Scene.tsx         one beat, pure f(frame)
+src/style-brief.ts    STYLE + CUE                 <- the brief and the time table
+public/               voiceover.wav, music.wav, images, fonts
+```
+
+```bash
+npm install
+npx remotion browser ensure       # once, 102 MB
+npx remotion studio src/index.ts  # optional preview
+npx remotion render src/index.ts portrait work/render-raw.mp4 --concurrency=8
+```
+
+**Measured render times** on a scene with 8 animated shapes, 2 text lines and a progress bar:
+
+| Duration | Frames | Concurrency | Wall |
+|---|---|---|---|
+| 60 s portrait | 1800 | 1 | 127 s |
+| 60 s portrait | 1800 | 4 | 47 s |
+| 60 s portrait | 1800 | 8 | **42 s** |
+| 300 s landscape | 9000 | 8 | **177 s** |
+| 15 s with a 1080×1920 video plate | 450 | 6 | 46 s |
+
+Concurrency is the single biggest lever: 1→127 s, 8→42 s on 1800 frames. Default to the
+number of physical cores, capped at 8; past that Chrome instances fight for memory
+(~256 MB each).
+
+**The CLI argument is the composition `id`, never the component name.** Passing `Root`
+where `portrait` is expected fails with `Could not find composition with ID Root`.
+
+## 3. Measuring and analysing the voiceover
+
+Duration:
+
+```bash
+ffprobe -v error -show_entries format=duration -of csv=p=0 "public/voiceover.wav"
+```
+
+Word timing: **speech recognition first, word-count estimation last.** ~2.5 words/second
+exists only to sanity-check script length, never to place text.
+
+Two runtimes are installed. Pick by what is available:
+
+**A. whisper.cpp (installed at `_install/whisper.cpp`, model `ggml-small.bin`)**
+
+```bash
+whisper.cpp/build/bin/whisper-cli \
+  -m whisper.cpp/ggml-small.bin \
+  -f work/voiceover-16k.wav -l id -oj -of work/words
+```
+
+`-oj` writes `work/words.json` with per-word offsets. Measured: 3 s of audio transcribed in
+14.9 s on this machine with the `small` model, CPU only.
+
+**B. faster-whisper (Python, 1.2.1)**
+
+```bash
+ffmpeg -v error -y -i "public/voiceover.wav" -ar 16000 -ac 1 work/voiceover-16k.wav
+```
+
+```python
+from faster_whisper import WhisperModel
+m = WhisperModel("small", device="cpu", compute_type="int8")
+segs, _ = m.transcribe("work/voiceover-16k.wav", language=None, word_timestamps=True)
+# language=None auto-detects; pin "id" only when the script is Indonesian
+```
+
+Take ASR output as-is even when the transcription is wrong — you need the word boundaries,
+not the spelling. ASR error of ±0.1 s is invisible; word-count estimation can be off by 2 s.
+
+Write the result to `audio/words.json` — the one artefact every later stage reads:
+
+```python
+import json
+json.dump({
+    "vo_delay": 1.0,          # the single lead-in constant, never re-typed per scene
+    "segments": [{"start": s.start, "end": s.end, "text": s.text,
+                  "text_display": align_from_script(s),   # script.txt spelling
+                  "words": [{"word": w.word, "start": w.start, "end": w.end}
+                            for w in s.words]} for s in segs]
+}, open("audio/words.json", "w"), ensure_ascii=False, indent=1)
+```
+
+`text_display` is the sentence as `script.txt` spells it. The ASR `text` stays exactly as
+recognised because only its boundaries matter — but it must never reach a subtitle.
+
+If the voiceover is delayed during mixing, every ASR time must be shifted by that delay
+before use. Keep it as one constant (`VO_DELAY`) and derive all times from it.
+
+If the computed total exceeds the cap — **60 s portrait, 300 s landscape** — stop and ask.
+
+### When there is no voiceover
+
+1. **Generate with Gemini TTS** (needs `GEMINI_API_KEY`). Models: `gemini-3.8-flash-tts`
+   (best) and `gemini-3.8-flash-lite-tts` (separate quota).
+   The API is the **Interactions** endpoint: `POST /v1beta/interactions`, style in
+   `input[].content[].annotations[].style`, audio in `steps[].content[].data`.
+   Build the payload with `json.dumps` (never inline the script into a curl `-d`),
+   and strip `[Hook]` / `[Inti N]` / `[Penutup]` labels before sending — the model reads
+   text verbatim and will speak them aloud.
+2. **No API key / failure:** never fabricate a voice. Ask the user to record the approved
+   script. If they want a draft without voice, estimate timing from word count and label
+   it a draft.
+
+## 4. Analysing a reference video
+
+The reference comes from the user (file or URL) or is found on Pinterest. For a URL,
+download with `yt-dlp "<url>" -o "assets/reference.mp4"` before analysing. Read it in four
+steps: a **contact sheet** for the design layers, **motion strips** for the temporal ones,
+an eight-layer read, and a brief written into `src/style-brief.ts`.
+
+A still cannot show easing, entry duration or text granularity — those only exist in
+consecutive frames.
+
+```bash
+REF="assets/reference.mp4"
+ffprobe -v error -show_entries stream=width,height,r_frame_rate,duration -of default=nw=1 "$REF"
+```
+
+The reference must match the orientation chosen in stage 1 — a mismatch fails the filter
+below and never changes `MAX_DUR`.
+
+### Pass 1 — contact sheet over the whole clip
+
+```bash
+RDUR=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$REF")
+
+# ~60 thumbnails across the whole clip, never coarser than one every 2 s
+DIMS=$(python3 -c "import math; d=max(float('$RDUR'),1); f=min(2.0, 60/d); c=max(1, round(d*f)); print(f'{f:.3f} {math.ceil(math.sqrt(c))}')")
+FPS=${DIMS% *}; GRID=${DIMS#* }
+
+mkdir -p work/ref
+ffmpeg -i "$REF" -vf "fps=$FPS,scale=240:-1,tile=${GRID}x${GRID}" -frames:v 1 -update 1 work/ref/contact.png
+```
+
+The grid is sized from the clip's duration. A fixed `tile=6x5` at `fps=2` covers the first
+**15 s** of any clip and then fails on the remaining tiles.
+
+### Pass 2 — motion strips around three cuts
+
+```bash
+ffmpeg -i "$REF" -vf "select='gt(scene,0.3)',showinfo" -an -f null - 2>&1 \
+  | grep -o "pts_time:[0-9.]*" | cut -d: -f2 > work/ref/cuts.txt
+
+awk 'NR==1{f=$1} {a[NR]=$1; n=NR}
+     END{if(!n){print "no cuts found" > "/dev/stderr"; exit}
+         printf "%s\n", f
+         if(n>2) printf "%s\n", a[int((n+1)/2)]
+         if(n>1) printf "%s\n", a[n]}' work/ref/cuts.txt > work/ref/pick.txt
+
+# 0.5 s before each cut, 1.0 s after: 45 frames in a 15x3 tile
+while read -r T; do
+  S=$(awk -v t="$T" 'BEGIN{x=t-0.5; if(x<0)x=0; printf "%.3f", x}')
+  ffmpeg -ss "$S" -i "$REF" -t 1.5 -vf "fps=30,scale=200:-1,tile=15x3" \
+    -frames:v 1 -update 1 "work/ref/strip-$T.png"
+done < work/ref/pick.txt
+```
+
+`showinfo` writes at info level — adding `-v error` silences the very lines this pipeline
+greps, and an empty `cuts.txt` then reads as "a reference with no cuts".
+
+### Pass 3 — the eight-layer read
+
+Read the sheet and the strips layer by layer. Every layer answers one question and produces
+one line of the brief. "Warm palette" is not a reading; "70% near-black, 20% cream, 10%
+orange, orange on one word per frame" is.
+
+| Layer | What to read | Where it lands |
+|---|---|---|
+| **Palette** | roles (ground / ink / accent), the share of frame each holds, whether the accent marks one word or a whole field, whether the palette shifts between chapters, texture over the colour | `STYLE.palette` |
+| **Typography** | title-to-meta size ratio, families and the axis varied, tracking on caps, whether type is used as an image | `STYLE.type` |
+| **Composition** | empty-space ratio, where the mass sits, layer count, full-bleed vs card | `STYLE.layout` |
+| **Graphic language** | shape vocabulary, corner radius, stroke weight, fill style, icon grid, diagram grammar, texture | `STYLE.graphics` |
+| **Motion** | entry duration in frames, easing shape, overshoot, what moves, text granularity, secondary motion | `STYLE.motion` |
+| **Rhythm** | cut distribution, event density per second, whether cuts land on speech or music | `STYLE.rhythm` |
+| **Sound** | whoosh / impact / riser / tick vocabulary, silence as punctuation | `STYLE.sound` |
+| **Attention** | what is on screen at 1.5 s, the chapter system, withholding, interruptions, callbacks | `STYLE.attention` |
+
+Two closing reads, both required:
+
+- **Signature device.** Name the one or two things that are this reference's fingerprint.
+  Write the principle, not the form, and then use it differently.
+- **Weakness.** Name what the reference does badly. That is where the build beats it.
+
+The reference is a **floor, not a ceiling**. At least one decision must come from the topic
+and be absent from the reference.
+
+### Pass 4 — write the brief into `src/style-brief.ts`
+
+Ten lines as typed constants. Not a separate JSON file — the build already has one source
+of truth per value, and `STYLE` is where the scene reads it. Update a constant when a
+decision changes; stage 7 checks the export against it.
+
+### Finding a reference on Pinterest (when the user gives none)
+
+If the user supplies no reference file or URL, searching is **mandatory before self-design**
+— the budget and failure modes are specified in `SKILL.md` stage 3: ≥5 pin candidates across
+≥2 searches as the floor, ~8 as the working target, one download attempt at a time, discard
+by the filter below, report each failure in one line.
+
+Search in this order — do not stop at the first failure:
+
+1. `https://id.pinterest.com/search/pins/?rs=typed&q=motion+graphics+<topik>`
+2. Judge fit, not relevance: palette, type register, motion pace.
+3. If nothing fits, take something loosely related — same mood, not same subject.
+4. If even that fails, design the style yourself and say so in one line.
+
+Filter before use — discard candidates that run under 5 s or over 180 s, have the wrong
+aspect ratio, have no video stream, or are visually unusable.
+
+**Aspect ratio, not resolution.** 720×1280 is a valid reference for a 1080×1920 build.
+Orientation must match; aspect ratio within ±2%; resolution is irrelevant.
+
+**When the user supplies the Pinterest URL themselves**, skip the search entirely.
+
+### Sourcing images
+
+Three sources; choose per scene by whatever communicates fastest: user images, images found
+and downloaded, code-drawn graphics.
+
+When downloading, verify before use: subject matches the script, resolution at least the
+output size in the dimension it occupies, no watermark, licence permits use. Save as
+`public/image-01.png`, `image-02.png`, … and record every source URL for the delivery
+message.
+
+Remotion note: files in `public/` are referenced with `staticFile('image-01.png')`, not by
+path.
+
+## 5. Building frames deterministically
+
+Remotion gives determinism for free — a frame is a function of `useCurrentFrame()`. What
+still has to be enforced:
+
+- **No clock, no unseeded randomness.** `Date.now()`, `Math.random()`, `setTimeout` and
+  `requestAnimationFrame` all break frame-parity. Use `random()` from `remotion` (seeded by
+  the frame) or `@remotion/noise`.
+- **No `play()`.** `<OffthreadVideo>` and `<Audio>` are driven by the renderer. For local
+  video files that are already H.264, `OffthreadVideo` is the fastest and the most stable;
+  measured 450 frames of a 1080×1920 plate in 46 s at concurrency 6.
+- **One absolute-time table.** `CUE` in `src/style-brief.ts` holds every beat start in video
+  seconds. `Timeline.tsx` derives `<Series.Sequence>` durations from it; a scene never keeps
+  its own offset. Scene boundaries come from ASR sentence boundaries, not typed twice.
+- **Text must be a DOM node.** The sync gate reads `getBoundingClientRect()` — text drawn
+  into a canvas or an SVG path is invisible to it.
+
+**Easing.** Use `Easing` from remotion or a `spring()`. Measured entry of 8–12 frames with
+`spring({damping: 200})` reads as a snap; longer than 20 frames reads as a drift.
+
+**Sub-pixel drift.** CSS animates transform values with sub-pixel precision, so a 0.4 px
+per-frame drift does change pixels — unlike PIL. Keep drift in `translateX`/`translateY`,
+not `left`/`top`, so the compositor handles it.
+
+**Motion that survives the encoder.** Every second needs at least one element whose
+**position** changes. Shape pulses that only change radius can quantise away at CRF 18+.
+This is an encoding requirement, not a ban on held frames — a documented hold is a
+legitimate edit.
+
+**Render with resume.** Remotion has no partial-render resume, but `--frames=0-499` renders
+a range into the same output. For a long build, render ranges and concatenate:
+
+```bash
+for r in 0-2999 3000-5999 6000-8999; do
+  npx remotion render src/index.ts landscape "work/part-$r.mp4" --frames=$r --concurrency=8
+done
+```
+
+**Memory.** Each concurrent Chrome is ~256 MB. On a 24 GB machine, 8 is comfortable; past
+12 the OS starts swapping and the render slows down.
+
+## 6. Audio mixing and export
+
+Duration follows the voiceover. Compute total duration and frame count first:
+
+```bash
+ORIENT=landscape                # portrait | landscape — read it from stage 2, never guess
+case "$ORIENT" in
+  portrait)  MAX_DUR=60 ;;
+  landscape) MAX_DUR=300 ;;
+esac
+VO_DUR=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "public/voiceover.wav")
+DUR=$(awk -v v="$VO_DUR" 'BEGIN{t=v+2.5; d=int(t); if (d<t) d++; print d}')
+FRAMES=$((DUR*30))
+echo "orient=$ORIENT voiceover=$VO_DUR total=$DUR s frames=$FRAMES cap=$MAX_DUR"
+```
+
+Put `DUR` and `FRAMES` into `src/Root.tsx` as `durationInFrames`.
+
+**The cap is a ceiling, not a target.** Derive the number from the last beat, never from the
+orientation. Measured failure on this scaffold: a 1800-frame composition against a CUE ending
+at 7 s held the closing beat for 53 s, so 87% of the video was one still frame and the contact
+sheet showed nine near-identical thumbnails.
+
+```python
+import json
+d = json.load(open('audio/words.json'))
+last_beat = max(s['end'] for s in d['segments'])
+dur = int(last_beat + d['vo_delay'] + 1.5) + 1   # round up, 1.5 s tail
+print(f"DUR={dur} FRAMES={dur * 30}")
+```
+
+**Audio is placed in the composition, then normalised after export.** Remotion mixes through
+`<Audio>` and does **not** normalise loudness — measured −34.4 LUFS for a sine at 0.8 volume,
+which fails every platform. The fix is one ffmpeg pass on the exported file:
+
+```bash
+ffmpeg -y -i work/render-raw.mp4 \
+  -af "loudnorm=I=-16:TP=-1.5:LRA=11" \
+  -c:v copy -c:a aac -b:a 192k -ar 48000 \
+  out/<slug>.mp4
+```
+
+`-c:v copy` means the video is never re-encoded, so this costs seconds. Measured: −34.4
+LUFS before, **−15.9 LUFS** after. The raw render goes to `work/` and only the normalised
+file carries the deliverable name — no `-final` suffix, a re-render overwrites the same path.
+
+Ducking music under speech is done in the mix, not in ffmpeg — set `volume` on each
+`<Audio>` and animate it with `interpolate()` on the frame:
+
+```tsx
+<Audio src={staticFile('music.wav')} volume={(f) =>
+  interpolate(f, [0, 30, 300, 330], [0, 0.25, 0.25, 0], {extrapolateRight: 'clamp'})} />
+```
+
+The three-step ffmpeg chain in the PIL skill (`loudnorm` into its own file, then `apad`,
+then `amix`) exists because of a filter-order bug there. Remotion does the mixing, so the
+only post-pass needed is the loudness line above — do not stack both.
+
+Output is H.264 + AAC 48 kHz stereo automatically. `-ac 2` is not needed.
+
+## 7. Verifying the exported file
+
+Never trust the duration shown by the studio. Measure the MP4 itself:
+
+```bash
+ffprobe -v error -count_frames -select_streams v:0 \
+  -show_entries stream=nb_read_frames,width,height,r_frame_rate -of csv=p=0 out/<slug>.mp4
+ffprobe -v error -show_entries format=duration:stream=duration,codec_name,channels \
+  -of default=nw=1 out/<slug>.mp4
+```
+
+Target: container ≈ `DUR` seconds, `FRAMES` video frames, 30 fps, H.264 + AAC, resolution as
+planned. Report the real numbers. If they miss, fix and re-export — never round the report.
+
+### Sync gate
+
+Every text must be **proven** to appear at its word time and not before. In PIL that means
+wrapping the draw call; here the text is DOM, so read it back.
+
+Two routes were measured:
+
+| Route | Cost | Verdict |
+|---|---|---|
+| `remotion still` per sample | 19.4 s cold, 6.4 s warm | too slow for 20 samples |
+| `@remotion/player` in a headless page + `seekTo` + DOM query | **251 ms per sample** | use this |
+
+The scaffold ships this as `qc/make-player-host.mjs` + `qc/sync-gate.mjs`:
+
+```bash
+node qc/make-player-host.mjs          # writes work/player-host.html
+node qc/sync-gate.mjs                 # reads qc/sync-cases.json, prints findings
+```
+
+`qc/sync-cases.json` is a list of `{text, t_vo}`. The gate converts each `t_vo` to video
+time with `VO_DELAY`, then proves two things:
+
+- the text **is** present at `t + 0.10`
+- the text is **not** present at `t − 0.15`
+
+The asymmetry matters: 0.1 s late is invisible, appearing early is a visible defect.
+
+Measured behaviour of the DOM read-back:
+
+```
+frame 0   ["harga", "label pendukung 0"]
+frame 45  ["naik", "label pendukung 45"]
+frame 120 ["kali", "label pendukung 120"]
+```
+
+Text changes per frame and boxes move, so this is a real gate, not a stub.
+
+### Geometry gate
+
+Run in the same headless page. The rules are the same numbers as the PIL skill; only the
+way you get the box changes.
+
+```js
+await page.evaluate(async (seconds) => {
+  await window.__seekTo(seconds);
+  const out = [];
+  for (const el of document.querySelectorAll('[data-qc]')) {
+    const r = el.getBoundingClientRect();
+    const cs = getComputedStyle(el);
+    out.push({
+      text: el.textContent.trim(),
+      x: r.x, y: r.y, w: r.width, h: r.height,
+      color: cs.color,
+      fontSize: parseFloat(cs.fontSize),
+      varName: el.dataset.qc,
+    });
+  }
+  return out;
+}, t);
+```
+
+- **Safe area** — no box crosses 4% of the frame edge. For portrait, the stricter 10% bottom
+  and 12% right also apply; anything that must be read sits at 15% from the bottom.
+- **Cap height** — CSS `fontSize` is not cap height. The ratio is font-specific: on DejaVu
+  Sans Bold, capitals are 0.73× the size. Measure a capital once per face with
+  `measureText` and solve for the size. Threshold: 4% of the short side for primary,
+  2.5% for supporting.
+- **Contrast** — 3.0:1 primary, 4.5:1 supporting, measured against the pixels actually
+  behind the text, not the page background.
+- **Collision** — coverage of two boxes; exclude identical boxes (deliberate overlap).
+
+Add `data-qc="role"` to every text node you want the gate to see.
+
+### Audio gate
+
+```bash
+# 1) no dead air inside the speech region
+VO_DELAY=$(python3 -c "import json;print(json.load(open('audio/words.json'))['vo_delay'])")
+VO_DUR=$(ffprobe -v error -show_entries format=duration -of csv=p=0 public/voiceover.wav)
+SE=$(awk -v a="$VO_DELAY" -v b="$VO_DUR" 'BEGIN{printf "%.2f", a+b}')
+
+ffmpeg -i out/<slug>.mp4 -af silencedetect=noise=-50dB:d=0.5 -vn -f null - 2>&1 \
+  | grep -E "silence_(start|end)" \
+  | awk -v s="$VO_DELAY" -v se="$SE" '
+      /silence_start/ { st=$NF; next }
+      /silence_end/   { en=$NF; if (en > s+0.25 && st < se-0.2) { print "FAIL dead air " st "-" en "s"; bad=1 } }
+      END { if (bad) exit 1; print "audio gate 1 OK (speech " s "-" se "s)" }'
+
+# 2) loudness and true peak
+ffmpeg -hide_banner -nostats -i out/<slug>.mp4 -af ebur128=peak=true -f null - 2>&1 \
+  | grep -E "^\s+(I|Peak):" | sed 's/^ *//'
+```
+
+Target: **I between −17 and −14 LUFS**, true peak ≤ −1 dBTP.
+
+`silence_start` prints the time as the last field; `$3` matches nothing and every gate
+appears to pass.
+
+### Picture gates
+
+```bash
+ffmpeg -i out/<slug>.mp4 -vf "freezedetect=n=0:d=1.0" -an -f null - 2>&1 | grep freeze_
+ffmpeg -i out/<slug>.mp4 -vf "blackdetect=d=0.5:pix_th=0.02" -an -f null - 2>&1 | grep black_
+```
+
+`freezedetect` needs `n=0`. Its default `n=0.001` (about −60 dB) false-positives on flat
+graphics, and `n=-60dB` is not a legal argument — `n` is a linear 0–1 ratio.
+`blackdetect` needs `pix_th=0.02`: a `0x0B0B0F` background reads as black from `0.05` up.
+
+A deliberate hold is legitimate when it is written in the timeline. Undocumented freezes
+are defects.
+
+### Contact sheet
+
+```bash
+mkdir -p work/check
+CELLS=$(( (DUR + 2) / 3 ))
+GRID=$(python3 -c "import math; print(max(1, math.ceil(math.sqrt($CELLS))))")
+ffmpeg -i out/<slug>.mp4 -vf "fps=1/3,scale=240:-1,tile=${GRID}x${GRID}" \
+  -frames:v 1 work/check/sheet.png
+```
+
+Measured: 60 s → 20 cells in 5×5; 300 s → 100 cells in 10×10.
+
+**Read the sheet; do not only count cells.** Two defects reached a render on this scaffold
+and passed every numeric gate:
+
+- a large word straddling the edge of its block, half on black — unreadable, and no
+  bbox check fired because the box itself was inside the frame;
+- rows of identical thumbnails, because the drift stopped after one second.
+
+If the main model cannot see the sheet, hand it to the `vision` subagent in one call and
+work from the description. A gate that measures numbers cannot tell you a word is
+illegible.
+
+### What is a hard requirement
+
+Two checks protect the file itself and are not advice:
+
+- **frame count matches `DUR × 30`** — a truncated render passes every visual check;
+- **loudness and tail floor** — a quiet mix passes every other gate and plays badly.
+
+Everything else is reported with its number and a decision.
+
+## 8. Self-made background music
+
+Only when the user supplies none. Generate a simple ambient pad with ffmpeg or numpy —
+several chord tones layered at low volume, plus a light pulse. Export as 48 kHz WAV into
+`public/music.wav` and reference it with `staticFile`.
+
+Tell the user plainly that this is simple synthesised music, not a professional composition.
+
+Optional synthetic SFX for transitions:
+
+```bash
+ffmpeg -f lavfi -i "anoisesrc=d=0.4:c=pink:a=0.5" \
+  -af "afade=t=in:d=0.1,afade=t=out:st=0.2:d=0.2,volume=0.3" -ar 48000 public/whoosh.wav
+```
+
+## 9. Common traps
+
+- **Missing `registerRoot`.** `remotion render` on a file that does not call it fails with
+  `this file does not contain "registerRoot"`. Keep `src/index.ts` as the entry point and
+  never pass a component file to the CLI.
+- **Missing `tsconfig.json`.** Remotion refuses to start without one. The scaffold ships it.
+- **Composition id vs component name.** The third CLI argument is the `id`, not the exported
+  component.
+- **Browser not installed.** Every render fails with a protocol error. `npx remotion browser ensure`.
+- **A font that is not loaded falls back silently.** Text width changes, the cap-height gate
+  passes the wrong size. Await `loadFont()` before the first frame that uses it.
+- **`measureText` outside a browser** throws. It is a component-time call, not a Node one.
+- **`Date.now()` or `Math.random()`** breaks frame-parity: two renders of the same file
+  differ. Use `random()` from remotion.
+- **`<Video>` instead of `<OffthreadVideo>`** is markedly slower and can drop frames under
+  load. Use `@remotion/media` or `OffthreadVideo`.
+- **Concurrency past ~12 on 24 GB** swaps and slows down. Measure before raising it.
+- **A long render with no resume.** Render ranges with `--frames=` and concatenate.
+- **Loudness is not normalised.** Remotion mixes; it does not master. One `loudnorm` pass
+  after export, with `-c:v copy`.
+- **`npx remotion still` in a loop** for a sync gate costs 6.4 s per sample. Use the Player.
+- **`<Series.Sequence>` stacks children back to back and ignores a start time.** A 1 s
+  lead-in needs its own `<Sequence>`, or every beat fires one second early. Measured
+  symptom: a reveal scheduled at 4.72 s appeared at 3.72 s. Use `<Sequence from=...>`.
+- **`useCurrentFrame()` inside a `<Sequence>` is already sequence-local.** Subtracting
+  `beat.start` a second time makes the reveal frame hugely negative and the text never
+  appears. Measured symptom: computed opacity stayed 0 for the whole beat.
+- **A drift that stops early leaves duplicate frames.** Animating position only over the
+  first second produced identical thumbnails for the rest of a 15 s video — the contact
+  sheet showed rows 2 and 3 as duplicates. Drift across the whole beat.
+- **A large word placed by `top` sits on its baseline box, not inside a block.** Measured
+  on the render: a 132 px display word at `top: 1040` with a block at `top: 1120` straddled
+  the block's top edge, half on black and half on orange. Give the block a `lineHeight: 1`
+  box and place the text inside it, then check on the contact sheet.
+- **`opacity: 0` still has `textContent`.** A sync gate that only reads text finds every
+  future word on screen at frame 0. Walk the parent chain and multiply computed `opacity`,
+  and require a non-zero box — the DOM equivalent of the PIL gate's alpha filter.
+- **An empty lead-in reads as a blank opening.** Measured on the contact sheet: the first
+  two thumbnails were empty canvas. Put the title card in the lead-in `<Sequence>`.
+
+## 10. Cleanup after delivery
+
+`work/` holds every intermediate file: bundles, `ref/`, `check/`, `voiceover-16k.wav`,
+player host, `render-raw.mp4`. It can reach hundreds of megabytes. Once the video is
+verified and delivered, delete the whole `work/`.
+
+**Keep — everything a later revision needs:**
+
+| Path | Why it must survive |
+|---|---|
+| `script.txt` | the narration source |
+| `src/` | the whole visual design: `Root.tsx`, `Timeline.tsx`, `Scene.tsx`, `style-brief.ts` |
+| `public/voiceover.wav` | timing source; the composition plays it |
+| `audio/words.json` | **the only non-reproducible derived file** — a fresh ASR pass returns ±0.1 s different timestamps and desyncs a re-render |
+| `public/music.wav` | re-mix without regenerating |
+| `public/` | images, fonts, plates, music |
+| `qc/sync-cases.json` | the texts the sync gate proves, with their word times |
+| `package.json`, `tsconfig.json` | the toolchain |
+| `out/<slug>.mp4` | the deliverable |
+| `out/<slug>.srt` | subtitle track, when generated |
+| `out/publish.txt` | caption, description, hashtags |
+
+Before deleting, confirm the required checks passed — duration, frame count, loudness, tail
+floor, black/freeze — measured from the exported MP4, never from the timeline.
+
+**Verify the kept set is self-sufficient:**
+
+```bash
+grep -rhoE "staticFile\('([^']+)'\)" src | sed "s/staticFile('//;s/')//" | sort -u | while read p; do
+  [ -e "public/$p" ] || echo "MISSING for re-render: public/$p"
+done
+```
+
+An empty result means `rm -rf work` cost nothing that matters: the bundle rebuilds in one
+command, and a re-render restores the full video with identical timing.
