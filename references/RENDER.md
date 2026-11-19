@@ -497,9 +497,9 @@ indistinguishable from the music having died: measured on a 28 s film, it left t
 at **−61.7 dB** and the tail-floor check failed. Ending at about −48 dB keeps the bed audible
 under the last held frame.
 
-The three-step `loudnorm` → `apad` → `amix` chain belongs to a drawing pipeline that has no
-mixer of its own. Remotion mixes, so the only post-pass needed is the loudness line above.
-Do not stack both.
+A three-step `loudnorm` → `apad` → `amix` chain exists for pipelines that have no mixer of
+their own. Remotion mixes, so the only post-pass needed is the loudness line above. Do not
+stack both.
 
 Output is H.264 + AAC 48 kHz stereo automatically. `-ac 2` is not needed.
 
