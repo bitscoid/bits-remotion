@@ -214,9 +214,14 @@ npx remotion render src/index.ts portrait work/render-raw.mp4 --concurrency=8
 | 300 s landscape | 9000 | 8 | **177 s** |
 | 15 s with a 1080×1920 video plate | 450 | 6 | 46 s |
 
-Concurrency is the single biggest lever: 1→127 s, 8→42 s on 1800 frames. Default to the
-number of physical cores, capped at 8; past that Chrome instances fight for memory
-(~256 MB each).
+Concurrency is the single biggest lever: 1→127 s, 8→42 s on 1800 frames, so the curve is steep
+up to 4 and nearly flat from 4 to 8. Default to the number of physical cores, capped at 8; past
+that Chrome instances fight for memory (~256 MB each) and §9 notes swapping past ~12 on 24 GB.
+
+These numbers hold across releases but not to the second: re-measured on the same class of box,
+the 4- and 8-concurrency rows landed within 2%, while 1 concurrency drifted ~17% because a
+single worker is the most sensitive to whatever else is running. Treat the table as the shape of
+the curve, not as a stopwatch, and never benchmark on a loaded machine.
 
 **The CLI argument is the composition `id`, never the component name.** Passing `Root`
 where `portrait` is expected fails with `Could not find composition with ID Root`.
