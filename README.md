@@ -96,7 +96,7 @@ be rendered side by side and cannot affect each other.
 ### End to end, with the commands
 
 ```bash
-cd <direktori kerja pilihan Anda>   # project dibuat di current directory
+cd <your working directory>   # projects are created in the current directory
 ```
 
 Then ask the agent, in Indonesian:
