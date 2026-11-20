@@ -19,9 +19,12 @@ What each file is:
 | `scripts/setup-shared-browser.sh` | one-time: download the browser once, share it |
 | `src/index.ts` | `registerRoot(Root)`; this is the file the CLI receives |
 | `src/Root.tsx` | one `<Composition>` per orientation; **the CLI arg is the `id`** |
-| `src/Timeline.tsx` | places each beat with `<Sequence from durationInFrames>` |
-| `src/Scene.tsx` | one beat; text carries `data-qc` so the gate can read it |
+| `src/Timeline.tsx` | places each beat with `<Sequence from durationInFrames>`; picks the beat shape — `word`, `stack` or `figure` |
+| `src/Scene.tsx` | the `word` beat (caption over a figure); text carries `data-qc` so the gate can read it |
+| `src/SceneStack.tsx` | the `stack` beat — lines stacked, a rule draws itself |
+| `src/SceneFigure.tsx` | the `figure` beat — no word at all, a code-built figure |
 | `src/cue.ts` | `CUE` and `DURATION_SECONDS`, derived from `audio/words.json` |
+| `src/fonts.ts` | one loader per family in `PRESETS`; only the chosen preset's three are called |
 | `src/type-presets.ts` | the eight type registers; set `TYPE_PRESET` here |
 | `src/style-brief.ts` | `STYLE` — the ten-line brief; reads its families from the preset |
 | `qc/make-player-host.mjs` | bundles the Player host into `work/` |

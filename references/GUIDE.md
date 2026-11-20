@@ -57,7 +57,7 @@ Rules:
   .content { position: absolute; inset: 13% 5% 20% 5%; }
   ```
 
-  The bottom margin is wider than the top because that is where the **main short-form platforms** stack their UI — caption, username, audio ticker, progress bar, OS gesture bar — while the top carries only a header. (This box is for short-form posts; a 15 s Story reserves a little more.) Two sources in this repo describe organic short-form and agree on the size: `_vendor/explainer-video-skills/skills/wrapped-video/references/scene-grammar.md` (top 12%, bottom 18%, sides 5%) and `_vendor/motioner/references/typography.md` (top 250 px, bottom 400 px on a 1080-wide frame). Top is 13% to clear the taller of the two.
+  The bottom margin is wider than the top because that is where the **main short-form platforms** stack their UI — caption, username, audio ticker, progress bar, OS gesture bar — while the top carries only a header. (This box is for short-form posts; a 15 s Story reserves a little more.) Two other installed skills describe organic short-form and agree on the size: `~/.agents/skills/iart-wrapped-video/references/scene-grammar.md` (top 12%, bottom 18%, sides 5%) and `~/.agents/skills/motioner/references/typography.md` (top 250 px, bottom 400 px on a 1080-wide frame). Top is 13% to clear the taller of the two.
 
   **One asymmetry survives, and it is not a margin — it is the action rail.** TikTok and Shorts draw like / comment / share / audio in a strip down the lower right. Below **55% of the frame height** (`y > 1056`) that strip pulls the right edge in to **88%** (`x ≤ 950`). Above the line the full 5% margin applies, so titles and top-half composition keep the whole width.
 
@@ -73,7 +73,7 @@ Rules:
 
   Landscape keeps the plain **4%** edge, because no feed UI overlays a 16:9 player. Anything that must be read — and **every burned-in caption** — sits inside **10%** (Adobe title-safe: `x 192..1728, y 108..972` on `1920×1080`). Nothing obeys the portrait box.
 
-  A caption near the bottom edge is the trap here: the common 80–120 px floor (`_install/node_modules/hyperframes/dist/skills/media-use/audio/references/captions/authoring.md`) lands at `y 960..1000`, which crosses the title-safe line at `y 972`. Put the caption **inside** the box — its baseline at `y 972` reads as 108 px from the bottom and costs nothing an audience notices, while a caption outside title-safe loses its descenders on a TV or a cropped player.
+  A caption near the bottom edge is the trap here: the common 80–120 px floor (`~/.agents/skills/media-use/audio/references/captions/authoring.md`) lands at `y 960..1000`, which crosses the title-safe line at `y 972`. Put the caption **inside** the box — its baseline at `y 972` reads as 108 px from the bottom and costs nothing an audience notices, while a caption outside title-safe loses its descenders on a TV or a cropped player.
 - The smallest text must stay legible at output resolution. **The threshold is cap height, not font size.** Two tiers, measured as a fraction of the **short side** so portrait and landscape share one number:
 
   | Tier | Cap height | Short side 1920 | Short side 1080 |
