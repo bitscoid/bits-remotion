@@ -89,10 +89,10 @@ Two naming layers:
 
 Single exception: **the project folder and the video are the slug of the topic title**, so they keep the user's words (`tiga-mitos-otak`). That folder is what the user opens in a file manager; translating the title to `three-brain-myths` destroys its meaning.
 
-Running in folder `projects` for the topic "Tiga Mitos Otak" produces:
+Running in the working directory (flat — no wrapper folder) for the topic "Tiga Mitos Otak" produces:
 
 ```
-projects/tiga-mitos-otak/
+tiga-mitos-otak/
 ```
 
 ### Tree
@@ -161,7 +161,7 @@ One separator only: **the hyphen**. Spaces force shell quoting; underscores are 
 2. **Write the title as a title** in user-facing text (`Tiga Mitos Otak`), never as the slug. The slug is only for paths.
 3. **Keep slugs near 40 characters**, cut on whole-word boundaries. Longer is painful in a file manager.
 4. **Reduce the slug to `[a-z0-9-]`**: transliterate what you can, then strip every remaining character that is not a lowercase letter, digit, or hyphen — punctuation, quotes, ampersands, dollar signs, backticks, parentheses, commas, and dots. Turn spaces into hyphens. A slug has to survive an unquoted shell command: `&` and `$` break far more than a space does.
-5. **Folder already exists → ask, unless it is this project's own folder.** A revision of the same topic continues in place and overwrites the same name; a different project with a colliding slug stops and asks. Never append `-2`; stacked copies leave the user unsure which is current.
+5. **Always a fresh folder — never reuse an existing project.** Before writing any file, check whether the slug already exists on disk. If it does — same topic, near-identical topic, or merely a colliding name — do NOT enter, continue, revise, or overwrite that folder: pick a new slug and build a brand-new project beside it. Derive the new slug by appending the shortest distinguishing word of the new brief (`baju-kerja`, `baju-lebaran`); fall back to `-2`, `-3`, … only when no clearer word exists (`baju-muslimah-sesuai-kondisi-2`). Scan the working directory for similar-topic folders before deciding — a topic that merely resembles an existing project still gets its own folder. The single exception: the user explicitly names the existing folder for a revision (`revisi folder X`, `lanjutkan project Y`) — only then work in place and overwrite that project's own names.
 
 ### Incoming assets
 
