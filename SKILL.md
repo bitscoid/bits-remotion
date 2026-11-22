@@ -480,32 +480,61 @@ Check the creative side with your eyes, not a script: open a contact sheet of th
 
 ### Publish copy — `out/publish.txt`
 
-Every delivery writes this file. The user should never have to write a caption by hand after watching the video, so the file is copy-paste ready with **no markdown headings inside the copies**, no quotes around them, and no placeholder left in.
+Setiap delivery menulis file ini. Isinya dikunci oleh keputusan CEO BITS
+2026-11-21 — tidak ada aturan caption lain yang berlaku.
 
-Rules:
-- **Derived from the finished script, never invented.** Every claim in the copy must already be said or shown in the video. No new numbers, no new promises, no clickbait the video does not deliver.
-- **One section per platform, in plain text**, separated by a blank line and a single `===` line so the user can see where each copy starts. Inside a section there is exactly one paragraph block: the caption.
-- **Caption budget**: first line is the hook and must survive truncation (~90 characters for Reels/TikTok, ~100 for Shorts before "more"). Total caption 150–300 characters per platform short-form; longer only for a landscape explainer, where 300–600 is fine.
-- **Hashtags**: 8–15 on TikTok and Reels, 3–5 on Shorts (YouTube ignores most of them and caps tags at 500 characters total). Build the mix from one broad tag, several topical tags that name the subject, and at most one niche tag — the platform count sets how many topical tags you add. No hashtag on a line of its own — append after the caption text, since a trailing hashtag wall reads like spam on Reels.
-- **Language follows the video's narration language.** Indonesian narration → Indonesian captions and Indonesian hashtags (`#investasisaham`, not `#stockmarket`).
-- **Never include**: emoji walls, "link in bio" when there is no link, invented statistics, or the word "viral".
-- **Optional blocks** are allowed and must be labelled plainly: a `Judul / Title` line (the platform title field, ≤100 chars), and for YouTube a `Deskripsi` block with 2–3 short lines plus a disclaimer line when the topic is financial, medical, or legal advice. A finance video without "bukan saran investasi" is a defect, not a nicety.
-
-Shape:
+Bentuk lengkap:
 
 ```
+# PROYEK : <slug>
+# VIDEO  : <slug>/output/<slug>.mp4
+# CHANNEL: BITS Style | BITS Tech | BITS Living
+# DURASI : <detik, satu desimal>
+# STATUS : SIAP | PERLU-REVIEW
+# UPDATE : <YYYY-MM-DD> (<apa yang berubah>)
+
 === TikTok
-<caption text> <hashtags on the same flowing block>
+<description 30–45 kata, satu paragraf>
+
+<5–8 hashtag>
 
 === Instagram Reels
-<caption text> <hashtags>
+<description>
+
+<5–8 hashtag>
 
 === YouTube Shorts
-Judul: <title, <=100 chars>
-<caption text> <3-5 hashtags>
+Judul: <judul maks 100 karakter>
+<description>
+
+<5–8 hashtag termasuk #Shorts>
+
+CATATAN
+- VO, musik, LUFS, sumber (blok internal, tidak pernah dibaca Buffer)
 ```
 
-Finished videos for a landscape explainer add a `=== YouTube` section with `Judul`, `Deskripsi`, and the tag list. Never write a block for a platform the user did not ask about and that the video's orientation rules out.
+Aturan:
+
+- **Description BUKAN transkrip script.** Script disampaikan lewat suara; caption dibaca orang
+  yang memutuskan nonton, dan dibaca mesin pencari. Tiga gerak: hook (masalah relatable) →
+  nilai yang didapat, ditulis dengan kata kunci yang orang benar-benar cari → jangkar apa yang
+  ada di video. 30–45 kata, satu paragraf, tanpa emoji, tanpa em dash.
+- **Hashtag 5–8 baris sendiri:** 2–3 topik besar, 2–3 spesifik, 1 tag channel
+  (`#bitsstyle` / `#bitscoid` / `#bitsliving`), tambah `#Shorts` khusus blok YouTube.
+- **DILARANG di blok platform:** CTA apa pun ("Hubungi kami", "link di bio", "follow untuk
+  part 2"), baris `Video dibuat dengan bantuan AI.`, baris `Musik: ...`, klaim angka yang tidak
+  ada di video, dan statistik karangan.
+- **Bahasa mengikuti narasi.** Narasi Indonesia → description dan hashtag Indonesia
+  (`#investasisaham`, bukan `#stockmarket`).
+- **Tidak ada heading markdown di dalam blok**, tidak ada tanda kutip pembungkus, tidak ada
+  placeholder tersisa. Baris `===` hanya penanda bagi manusia; teks di antaranya yang ditempel.
+- **Jangan menimpa `publish.txt` yang sudah ada tanpa membacanya** — itu satu-satunya file yang
+  mungkin sudah diedit tangan.
+- **Jangan menulis file sebelum video jadi.** Tanpa file jadi tidak ada yang bisa diukur, dan
+  header akan berisi angka karangan.
+
+Untuk menyebar caption ke post Buffer yang sudah terjadwal:
+`python3 /root/BITS/scripts/buffer-caption-bersih.py` (dry-run) lalu `--apply`.
 
 Fix everything you find before handing over. Deliver the MP4 using whatever mechanism the environment offers, or simply state its path. Project files are optional extras; the MP4 and `publish.txt` are mandatory.
 
