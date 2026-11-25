@@ -685,6 +685,48 @@ The gate reads the box from the rounded pixels, not the raw fraction, with a 0.5
 These numbers are organic short-form, not an ad spec — see `GUIDE.md` §2. This skill never runs
 `hyperframes check`, so the ad box those guides define is not consulted here.
 
+### Text inside a frame — centring gate
+
+A chip, badge, tag, button, sticker or card holds its text **centred both ways**:
+horizontally *and* vertically against its frame. Horizontal-only centring leaves
+the text floating high or low and reads as misplacement, however good the copy is.
+
+- **Browser (DOM/HTML):** let the frame centre its own content —
+  `display:flex; align-items:center; justify-content:center` — instead of nudging
+  the text with `transform`, `padding-top` or a hand-tuned offset. Then prove it:
+  `Range.getClientRects()` for the line count (one rect = one line) plus
+  `getBoundingClientRect()` of frame and text; centre-to-centre gap ≤ 2 px, and
+  top/bottom gaps equal within 3 px.
+- **PIL/skia (`render.py`):** never place text with a fixed nudge such as
+  `y + font.size * 0.34` — it is a guess that breaks at every new size or family.
+  Size the frame from the **glyph ink box** and centre the ink itself:
+
+  ```python
+  def ink_box(font, s, tracking=0.0):
+      """Real ink box of a string, relative to a text drawn at anchor 'lm'."""
+      x, xs, ys = 0.0, [], []
+      for ch in s:
+          b = font.getbbox(ch, anchor="lm")
+          xs += [x + b[0], x + b[2]]
+          ys += [b[1], b[3]]
+          x += font.getlength(ch) + tracking
+      return min(xs), min(ys), max(xs), max(ys)
+
+  ix0, iy0, ix1, iy1 = ink_box(font, label, tracking)
+  w = (ix1 - ix0) + 2 * pad_x          # frame from ink + symmetric padding
+  h = (iy1 - iy0) + 2 * pad_y
+  d.text((cx - (ix0 + ix1) / 2, cy - (iy0 + iy1) / 2),
+         label, font=font, anchor="lm")   # centre of ink on centre of frame
+  ```
+
+- **Prove it from pixels, not from the code that drew it.** Record each frame box
+  as it is drawn, then measure the rendered frame: ink bbox against frame bbox,
+  centre-to-centre ≤ 2 px and left/right, top/bottom gaps equal within 4 px.
+  Drop the rounded corners and a 4 px border before measuring, otherwise the
+  outline itself is counted as ink and every chip looks off-centre. Vision is not
+  a substitute — it calls a 12 px misalignment "centred".
+- A finding here is a defect, not taste: fix the geometry and re-render.
+
 ### Audio gate
 
 ```bash
@@ -786,8 +828,14 @@ Only when the user supplies none. Use the bundled generator — a one-chord pad 
 every film from these skills sound the same:
 
 ```bash
-python3 <skill>/scripts/make_music.py --duration 52 --out public/music.wav --tempo 84 --mood warm
+python3 <skill>/scripts/make_music.py --duration 52 --out public/music.wav \
+    --brief "pasar subuh, hangat, akustik, tenang, sedikit melankolis"
 ```
+
+**Write the brief from the topic — never reuse the previous film's brief.** The brief decides
+scale, chord progression, timbre family, bass motion, arpeggio density, texture and tempo,
+and seeds the randomness, so a copied brief is the one way to make this generator sound
+monotonous again.
 
 `<skill>` is this skill's own directory; the generator ships with the skill, so the
 project folder stays free of build tooling. Run it from the project folder.
@@ -795,16 +843,20 @@ project folder stays free of build tooling. Run it from the project folder.
 It writes 48 kHz stereo 16-bit WAV at exactly `--duration` (no loop needed), peak −6 dBFS,
 1.2 s fade-in, and a fade-out that lands on a floor. Reference it with `staticFile`.
 
-The bed is a four-chord progression (two bars per chord): a detuned two-voice pad per chord, a
-root bass on beats 1 and 3, a plucked arpeggio on eighths that alternates pan, and a soft noise
-breath at each chord change.
+What it plays comes from the brief: a four-chord functional progression in the scale the
+brief's mood implies (minor / dorian / major / lydian / phrygian / mixolydian), with a
+timbre family per topic (chalk / wood / glass / metal), bass motion (root / octave / walking),
+arpeggio density and a texture layer. Same brief renders identically, so a re-render never
+shifts the music away from the already-synced picture.
 
 | Flag | Values | Choose by |
 |---|---|---|
-| `--mood` | `warm` (Am–F–C–G) · `dark` (Dm–B♭–F–C) · `bright` (C–Em–Am–F) | the topic's tone; `dark` for history/analysis, `bright` for light explainers |
-| `--tempo` | 60–100, default 84 | the film's cut rhythm; keep it below the cut rate so it never fights the narration |
+| `--brief` | free text (required) | the topic's mood and material — this is the creative decision, write it fresh per film |
+| `--tempo` | 60–120 | the film's cut rhythm; omit to let the brief decide |
+| `--seed` | integer | force a different take from the same brief |
 
-Pick a different `--mood`/`--tempo` per film instead of reusing one bed across a series.
+Each film gets its own brief. Reusing one bed, or one brief, across a series is what made
+every film sound alike.
 
 Tell the user plainly that this is synthesised music — a progression and a pulse generated in
 code, not a composed track — and suggest royalty-free music when they want more.

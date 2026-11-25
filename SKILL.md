@@ -69,7 +69,7 @@ A new rule belongs here only if it satisfies **both**:
 
 A rule that passes (1) but fails (2) is a restriction, not a standard. Rejected examples: "overshoot must be 1.16", "the hook must be 3 seconds", "scenes must be 2–6 seconds", "the palette must be cream".
 
-- **Measured and reported:** text timing follows the spoken words; text inside a shape is centred by glyph box; no text collides or leaves the safe area; cap height meets the threshold; contrast meets the threshold; no dead audio inside the speech region; mix loudness inside the stated band; frame count is exact. Two of these are hard requirements (the exported frame count, finished loudness and tail floor); the rest inform your decision.
+- **Measured and reported:** text timing follows the spoken words; text inside a shape — chip, badge, tag, card, button — is centred both ways by the glyph ink box, never by a fixed offset (`references/RENDER.md` §7); no text collides or leaves the safe area; cap height meets the threshold; contrast meets the threshold; no dead audio inside the speech region; mix loudness inside the stated band; frame count is exact. Two of these are hard requirements (the exported frame count, finished loudness and tail floor); the rest inform your decision.
 - **Free (your call):** palette, scene count, transition order, **font choice and typeface family**, mood, text placement, cut rhythm, animation duration, overshoot amount, whether an idea needs words at all.
 
 Every number left in these documents **protects** something (legibility, safe area, contrast, encoder behaviour). If you find a number that dictates taste, treat it as a bug in this document: skip it and say so.
@@ -194,7 +194,7 @@ Tool configuration the Remotion pipeline needs — `package.json`, `tsconfig.jso
 
 | Script | Does |
 |---|---|
-| `scripts/make_music.py` | synthesises the background bed — four-chord progression, root bass, plucked arpeggio, noise breath at each chord change. Exact duration, 48 kHz stereo WAV, peak −6 dBFS. Flags: `--duration --out --tempo --mood`; see `references/RENDER.md` §8 |
+| `scripts/make_music.py` | synthesises the background bed — duration, 48 kHz stereo WAV, peak −6 dBFS. **Required: `--brief`**, free text describing the topic's musical mood; the brief decides scale, chord progression, timbre family, bass motion, arpeggio density, texture and tempo, and seeds the randomness. Optional `--tempo`, `--seed`. See `references/RENDER.md` §8 |
 
 ## Workflow
 
