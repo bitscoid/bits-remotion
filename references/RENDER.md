@@ -726,6 +726,7 @@ the text floating high or low and reads as misplacement, however good the copy i
   outline itself is counted as ink and every chip looks off-centre. Vision is not
   a substitute — it calls a 12 px misalignment "centred".
 - A finding here is a defect, not taste: fix the geometry and re-render.
+- Ready-made checker for PIL/skia frames: `/root/Motion-Skills/bits-bang-motion/scripts/chip-centring.py <frame.png> x0 y0 x1 y1` — also exports `ink_box()` for drawing; exit 1 when gaps differ beyond tolerance.
 
 ### Audio gate
 
